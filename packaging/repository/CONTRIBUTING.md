@@ -8,6 +8,7 @@
 | `x2_mdi.py` / `x2_mdi_bridge.py` | 终端 MDI / 桌面 JSONL 桥接 |
 | `x2_api.py` / `x2_sim_ros.py` | 内部运动接口、反馈检查与 ROS 通路 |
 | `x2_arm_model.py` / `x2_frames.py` / `x2_arm_dynamics.py` | 模型、坐标和重力相关计算 |
+| `x2_compensation.py` | 客户 MDI / MoveJ 的内置固定补偿参数 |
 | `x2_srs_ik.py` / `x2_srs_batch.py` | SRS + SEW 候选搜索、局部精修与连续跟踪 |
 | `desktop/` | 桌面输入、SSH 通信与 3D 显示 |
 | `packaging/` / `tools/` | 包入口、文档模板及显式清单构建 |
@@ -17,6 +18,9 @@
 
 根目录兼容工具仍保留内部维护功能；对外运行模块 CLI 只支持 `mdi` / `movej`。
 不要把内部工具的旧状态管理或直控命令作为客户使用方法。
+客户桌面/终端 MDI 和 `Robot.moveJ()` 不读取标定文件，统一使用
+`40 N·m/rad / 12° / pelvis`；SN 只保留机器标识。旧 `X2Arm` 的默认行为、非 MDI 工程 CLI
+及现场验收脚本仍保留按 SN 参数文件的独立流程，不能据此推断客户接口会加载同一文件。
 
 ## 环境与验证
 

@@ -19,6 +19,7 @@ import numpy as np
 
 from x2_arm_model import ArmModel, matrix_to_rpy, rpy_to_matrix
 from x2_frames import HOME_Q
+from x2_compensation import fixed_compensation
 from x2_mdi import Session, ActionQuery, is_urs, _solve_pose
 from x2_srs_ik import SrsArmIK
 
@@ -141,15 +142,11 @@ class Bridge:
     def _connect(self):
         import x2_sim_ros as ros
         self.ros = ros
-        sn = os.environ.get("X2_ROBOT_SN")
-        cfg = ros.load_calibration(sn) if sn else {}
-        if sn and (not cfg or cfg.get("sn", sn) != sn):
-            raise ValueError("SN 标定配置缺失或不匹配")
-        cfg = cfg or {}
+        cfg = fixed_compensation()
         self.cli = ros.X2ArmClient("upper_body", read_only=True, verbose=False,
-                                  joint_stiffness=np.full(7, float(cfg.get("stiffness", 40))),
-                                  bias_limit=math.radians(float(cfg.get("bias_limit_deg", 8))),
-                                  gravity_source=cfg.get("gravity_source", "chest"))
+                                  joint_stiffness=np.full(7, cfg["stiffness"]),
+                                  bias_limit=math.radians(cfg["bias_limit_deg"]),
+                                  gravity_source=cfg["gravity_source"])
         self.models, self.iks = self.cli.models, self.cli.iks
         self.query = ActionQuery(self.cli, ros.GET_ACTION_SRV)
         original_spin = self.cli.spin

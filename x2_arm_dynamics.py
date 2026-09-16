@@ -166,7 +166,8 @@ class ArmDynamics:
                       limit: Optional[Sequence[float]] = None) -> np.ndarray:
         """把重力力矩折算成位置指令偏置(rad),供只有位置接口的方案一使用。
 
-        joint_stiffness: 各关节等效刚度 N·m/rad,必须实测。给 0 表示该关节
+        joint_stiffness: 补偿计算采用的各关节等效刚度 N·m/rad；客户入口当前固定为
+        40，不代表已完成实测辨识。给 0 表示该关节
         不做补偿(例如腕部三轴力臂短、重力影响可忽略)。
         limit: 每关节偏置上限,防止标定不准时把指令推飞。
         """

@@ -9,7 +9,8 @@ import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = ["x2_movej", "x2_api", "x2_mdi", "x2_mdi_bridge", "x2_sim_ros", "x2_arm_model",
-           "x2_arm_dynamics", "x2_frames", "x2_srs_ik", "x2_srs_batch", "x2_record"]
+           "x2_arm_dynamics", "x2_frames", "x2_srs_ik", "x2_srs_batch", "x2_record",
+           "x2_compensation"]
 
 
 def package_imports(source):

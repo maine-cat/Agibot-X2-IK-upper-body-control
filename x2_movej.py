@@ -15,12 +15,14 @@ __all__ = ["Robot", "HOME"]
 class Robot:
     """一条连接，显式选择单臂或同时控制双臂。
 
-    机器人须已处于 URS。参数使用机器人本地的 x2ik.conf / SN 标定配置；
-    robot_sn 可显式指定机器。方法顺序阻塞，返回后不后台保位。
+    机器人须已处于 URS。补偿固定为 40 N·m/rad / 12 deg / pelvis；
+    robot_sn 仅记录机器身份，不读取或要求 SN 标定文件。
+    方法顺序阻塞，返回后不后台保位。
     """
 
     def __init__(self, *, robot_sn: Optional[str] = None, verbose: bool = True):
-        self._arm = _X2Arm("right", robot_sn=robot_sn, verbose=verbose)
+        self._arm = _X2Arm("right", robot_sn=robot_sn, verbose=verbose,
+                          _fixed_compensation=True)
 
     def moveJ(self, q: Optional[Sequence[float]] = None, *,
               side: Optional[str] = None,

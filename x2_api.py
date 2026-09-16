@@ -51,6 +51,7 @@ import numpy as np
 from x2_arm_model import ArmModel, matrix_to_rpy, rpy_to_matrix
 from x2_srs_ik import SrsArmIK
 from x2_frames import HOME_Q
+from x2_compensation import fixed_compensation
 
 #: 待机位关节角 (rad),7 个。move_j 的默认目标。
 HOME = HOME_Q.copy()
@@ -163,7 +164,8 @@ class X2Arm:
                  gravity_source: Optional[str] = None,
                  tcp_offset: Optional[Sequence[float]] = None,
                  payload: float = 0.0,
-                 verbose: bool = True, *, robot_sn: Optional[str] = None):
+                 verbose: bool = True, *, robot_sn: Optional[str] = None,
+                 _fixed_compensation: bool = False):
         if side not in ("left", "right"):
             raise ValueError("side 必须是 'left' 或 'right'")
         self.side = side
@@ -176,6 +178,7 @@ class X2Arm:
         self.cli = None
         self._ros = None
         self.robot_sn = robot_sn
+        self._fixed_compensation = _fixed_compensation
         self.connection_config = {}
         self._hold_inputs = {}
         self._send_uncertain = False
@@ -192,17 +195,25 @@ class X2Arm:
         import x2_sim_ros as ros
         self._ros = ros
         self.robot_sn = self.robot_sn or os.environ.get("X2_ROBOT_SN")
-        calibration = ros.load_calibration(self.robot_sn) if self.robot_sn else None
-        if self.robot_sn and calibration is None:
-            raise ValueError(f"找不到 SN={self.robot_sn} 的有效配置，拒绝静默使用其他机器参数")
-        calibration = calibration or {}
-        if calibration.get("sn", self.robot_sn) != self.robot_sn:
-            raise ValueError("配置文件内 SN 与所选 robot_sn 不一致")
-        stiffness = stiffness if stiffness is not None else calibration.get("stiffness", 40.)
-        bias_limit_deg = (bias_limit_deg if bias_limit_deg is not None
-                          else calibration.get("bias_limit_deg", 8.))
-        gravity_source = (gravity_source if gravity_source is not None
-                          else calibration.get("gravity_source", "chest"))
+        if self._fixed_compensation:
+            # Public Robot uses one fixed profile. SN is identity metadata only;
+            # even malformed or stale calibration files must not affect it.
+            profile = fixed_compensation()
+            stiffness = profile["stiffness"]
+            bias_limit_deg = profile["bias_limit_deg"]
+            gravity_source = profile["gravity_source"]
+        else:
+            calibration = ros.load_calibration(self.robot_sn) if self.robot_sn else None
+            if self.robot_sn and calibration is None:
+                raise ValueError(f"找不到 SN={self.robot_sn} 的有效配置，拒绝静默使用其他机器参数")
+            calibration = calibration or {}
+            if calibration.get("sn", self.robot_sn) != self.robot_sn:
+                raise ValueError("配置文件内 SN 与所选 robot_sn 不一致")
+            stiffness = stiffness if stiffness is not None else calibration.get("stiffness", 40.)
+            bias_limit_deg = (bias_limit_deg if bias_limit_deg is not None
+                              else calibration.get("bias_limit_deg", 8.))
+            gravity_source = (gravity_source if gravity_source is not None
+                              else calibration.get("gravity_source", "chest"))
         if not math.isfinite(stiffness) or stiffness <= 0:
             raise ValueError("stiffness 必须是有限正数")
         if not math.isfinite(bias_limit_deg) or not 0 <= bias_limit_deg <= 180:

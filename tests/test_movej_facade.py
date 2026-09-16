@@ -26,7 +26,8 @@ class MoveJFacadeTests(unittest.TestCase):
         self.robot = x2_movej.Robot(robot_sn="test-sn", verbose=False)
 
     def test_connection_does_not_move_or_request_state(self):
-        self.factory.assert_called_once_with("right", robot_sn="test-sn", verbose=False)
+        self.factory.assert_called_once_with("right", robot_sn="test-sn", verbose=False,
+                                             _fixed_compensation=True)
         self.assertEqual(self.arm.method_calls, [])
 
     def test_explicit_left_then_right_use_same_connection_and_return_feedback(self):

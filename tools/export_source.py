@@ -9,7 +9,7 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = (
     'x2_api.py', 'x2_arm_bridge.py', 'x2_arm_dynamics.py', 'x2_arm_model.py',
-    'x2_converge_test.py', 'x2_frames.py', 'x2_mdi.py', 'x2_mdi_bridge.py',
+    'x2_compensation.py', 'x2_converge_test.py', 'x2_frames.py', 'x2_mdi.py', 'x2_mdi_bridge.py',
     'x2_movej.py', 'x2_random_path_audit.py', 'x2_random_points.py',
     'x2_random_reach_plan.py', 'x2_random_reach_test.py', 'x2_record.py',
     'x2_sim_ros.py', 'x2_srs_batch.py', 'x2_srs_ik.py', 'x2_upper_raw.py',

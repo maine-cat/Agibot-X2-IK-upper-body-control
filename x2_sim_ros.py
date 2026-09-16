@@ -2,8 +2,9 @@
 """X2 上肢到点控制的 ROS 2 客户端与运动原语。
 
 当前板卡流程仅使用 upper_body：在已经处于 UPPERBODY_REMOTE_SPLIT（URS）
-的机器人上发点位，禁止任何状态切换及运控服务操作。配置应为
-X2_ROBOT_SN 为当前机器真实序列号、X2_URS_ONLY=1；由 ./x2ik.py ros 加载 x2ik.conf。
+的机器人上发点位，禁止任何状态切换及运控服务操作。配置由
+./x2ik.py ros 加载 x2ik.conf，X2_URS_ONLY=1。客户 MDI 使用固定补偿，
+X2_ROBOT_SN 仅记录机器身份；其他工程命令保留按 SN 加载标定的历史行为。
 不要把本文件保留的历史 HAL 直控、状态机或仿真功能作为当前操作指南。
 
 先看 README.md / QUICK_START.md。标准测试与闭环参数见
@@ -25,7 +26,7 @@ CONVERGE_TEST_GUIDE.md；对外封装见 x2_api.py / API_INTERFACE.md。
     /mc/upper_body_command，UpperBodyCommandArray，50 Hz。
     左 7 + 右 7 个关节，固定槽位见 DEFAULT_ARM_ORDER；两个实例不能独立占用
     两条臂。反馈来自 /aima/hal/joint/arm/state，按关节名读取位置、速度、力矩。
-    当前 SN 配置为 40 N·m/rad / 12 deg / pelvis；它是测试起始参数，
+    MDI 与公开 MoveJ 固定为 40 N·m/rad / 12 deg / pelvis；它是起始参数，
     不代表新机器的实测静态标定，旧的 17～42 刚度表已作废。
 
 运动原语：
@@ -71,6 +72,7 @@ import numpy as np
 from x2_arm_model import (ARM_JOINT_SUFFIX, ArmModel, log3, axis_angle_to_matrix,
                           rpy_to_matrix, matrix_to_rpy, rpy_deg)
 from x2_arm_dynamics import ArmDynamics
+from x2_compensation import fixed_compensation
 from x2_srs_ik import SrsArmIK, angle_delta, branch_tuple
 from x2_frames import (HOME_Q, GravityEstimator, WaistChain, lateral_raise_q,
                        quat_to_matrix, matrix_to_quat,
@@ -2306,7 +2308,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--gravity-ff", type=float, default=0.8)
     ap.add_argument("--payload", type=float, default=0.0)
     ap.add_argument("--stiffness", type=float, default=None,
-                    help="方案一的等效关节刚度 N·m/rad(实测标定值),默认取 mc 的 40")
+                    help="方案一的等效关节刚度 N·m/rad(实测标定值),默认取 mc 的 40；MDI 固定 40")
     ap.add_argument("--no-reenter", dest="reenter", action="store_false",
                     help="mc 已经在上肢遥操 action 时不再重走进入序列。"
                          "默认会重走 —— action 名留在 URS 但实际没 armed 时,"
@@ -2315,12 +2317,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     help="方案一的 hand_sub_mode。0=NONE(只吃 head_pos,手臂不动!) "
                          "1=夹爪 2=灵巧手关节 3=手势。想动手臂必须非 0,默认 1。")
     ap.add_argument("--bias-limit", type=float, default=None,
-                    help="方案一重力偏置的夹子 deg(默认 8)。姿态需要的偏置 = "
+                    help="方案一重力偏置的夹子 deg(工程命令默认 8，MDI 固定 12)。姿态需要的偏置 = "
                          "重力力矩/等效刚度,直臂侧平举要 11 deg,夹在 8 就会残 3 deg 下垂。"
                          "lateral 子命令在你没显式给这个值时会自动抬到够用为止")
     ap.add_argument("--gravity-source", default=None,
                     choices=["chest", "pelvis", "static"],
-                    help="重力向量来源,默认 chest(除非 SN 标定文件另有指定)。"
+                    help="重力向量来源,工程命令默认 chest(除非 SN 标定文件另有指定)，MDI 固定 pelvis。"
                          "chest=胸腔 IMU(挂在 torso_link,首选);"
                          "pelvis=基座 IMU+腰关节反馈;static=写死 [0,0,-9.81]")
     ap.add_argument("--record", default=None, metavar="PATH",
@@ -2464,10 +2466,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     pw.set_defaults(func=cmd_calibrate_show)
 
     args = ap.parse_args(argv)
+    mdi_profile = None
     if args.cmd == "mdi":
         import x2_mdi
         try:
             x2_mdi.validate_args(args)
+            mdi_profile = fixed_compensation()
+            for option, key in (("stiffness", "stiffness"),
+                                ("bias_limit", "bias_limit_deg"),
+                                ("gravity_source", "gravity_source")):
+                requested = getattr(args, option)
+                if requested is not None and requested != mdi_profile[key]:
+                    raise ValueError(
+                        f"MDI 使用固定补偿；--{option.replace('_', '-')} "
+                        f"只能为 {mdi_profile[key]}，不接受覆盖")
         except ValueError as exc:
             ap.error(str(exc))
     if args.cmd in ("pose", "cartesian"):
@@ -2500,25 +2512,32 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     order = (tuple(s.strip() for s in args.arm_order.split(",")) if args.arm_order
              else DEFAULT_ARM_ORDER)
-    # 标定回填。优先级:CLI 显式值 > calibration/<SN>.json > 内置默认值。
-    # 不设 X2_ROBOT_SN、也没有标定文件时,行为和加这段之前完全一致。
-    sn = os.environ.get("X2_ROBOT_SN")
-    calib = load_calibration(sn) if sn else None
-    if sn and calib is None:
-        print(f"[warn] 未找到 SN={sn} 的标定文件,用内置默认值", file=sys.stderr)
-    elif calib is not None:
-        print(f"[info] 已加载 SN={sn} 标定: stiffness={calib.get('stiffness')} "
-              f"bias_limit={calib.get('bias_limit_deg')}deg "
-              f"gravity_source={calib.get('gravity_source')}")
+    if mdi_profile is not None:
+        # Customer MDI does not inspect any SN calibration, including corrupt
+        # or conflicting old files. Engineering commands below are unchanged.
+        calib = None
+        stiffness_val = mdi_profile["stiffness"]
+        bias_limit_deg = mdi_profile["bias_limit_deg"]
+        gravity_source = mdi_profile["gravity_source"]
+    else:
+        # 工程命令仍按 CLI 显式值 > SN 标定文件 > 内置默认值回填。
+        sn = os.environ.get("X2_ROBOT_SN")
+        calib = load_calibration(sn) if sn else None
+        if sn and calib is None:
+            print(f"[warn] 未找到 SN={sn} 的标定文件,用内置默认值", file=sys.stderr)
+        elif calib is not None:
+            print(f"[info] 已加载 SN={sn} 标定: stiffness={calib.get('stiffness')} "
+                  f"bias_limit={calib.get('bias_limit_deg')}deg "
+                  f"gravity_source={calib.get('gravity_source')}")
 
-    def _pick(cli_val, key, default):
-        if cli_val is not None:
-            return cli_val
-        return calib[key] if calib and key in calib else default
+        def _pick(cli_val, key, default):
+            if cli_val is not None:
+                return cli_val
+            return calib[key] if calib and key in calib else default
 
-    stiffness_val = _pick(args.stiffness, "stiffness", None)
-    bias_limit_deg = _pick(args.bias_limit, "bias_limit_deg", 8.0)
-    gravity_source = _pick(args.gravity_source, "gravity_source", "chest")
+        stiffness_val = _pick(args.stiffness, "stiffness", None)
+        bias_limit_deg = _pick(args.bias_limit, "bias_limit_deg", 8.0)
+        gravity_source = _pick(args.gravity_source, "gravity_source", "chest")
 
     stiffness = None if stiffness_val is None else np.full(7, stiffness_val)
     cli = X2ArmClient(args.mode, order, args.gravity_ff, args.kp, args.kd,
@@ -2527,7 +2546,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                       bias_limit=math.radians(bias_limit_deg))
     # lateral 的"偏置夹子自动抬高"只在夹子还是内置默认值时才该动手。
     cli.reenter = args.reenter
-    cli.bias_limit_explicit = (args.bias_limit is not None
+    cli.bias_limit_explicit = (mdi_profile is not None or args.bias_limit is not None
                                or bool(calib and "bias_limit_deg" in calib))
     if args.record is not None:
         from x2_record import JointRecorder
