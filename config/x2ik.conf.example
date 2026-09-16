@@ -1,0 +1,6 @@
+# Copy to this robot's own x2ik.conf; do not commit the local copy.
+# X2_AIMDK_MSGS=/path/to/aimdk/install/aimdk_msgs
+# X2_ROBOT_SN=YOUR_ROBOT_SN
+# Provide calibration/<YOUR_ROBOT_SN>.json after site-specific verification.
+X2_URS_ONLY=1
+# Customers switch to URS with the robot's own controls. MDI cannot switch modes.

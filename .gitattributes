@@ -1,0 +1,3 @@
+# Retain upstream model bytes (identical to the existing v1.0 branch).
+x2_ultra.urdf -whitespace
+x2_ultra.xml -whitespace

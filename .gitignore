@@ -1,0 +1,54 @@
+# Dependencies from other projects and SDK installations
+/aimdk/
+/meshes/
+/.agents/
+/.codex/
+# Generated runtime, binaries and distributions
+/runtime/
+/dist/
+/delivery/
+/artifacts/
+/build/
+*.egg-info/
+*.AppImage
+*.whl
+*.tar.gz
+*.zip
+# Machine-specific configuration, field data and historical records
+/x2ik.conf
+/calibration/
+/results/
+/backups/
+/docs/archive/
+/docs/*RELEASE*.md
+/docs/*SYNC*.md
+/docs/*AUDIT*.md
+/*RELEASE*.sha256
+/MANIFEST.sha256
+/CONVERGE_TEST_REPORT_*.md
+/HANDOFF_*.md
+/SYNC_TO_DEV.md
+/DEPLOY_GUIDE.md
+# Interpreter/editor caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.vscode/
+.idea/
+*.log
+# Credentials and private machine material
+.ssh/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.pub
+id_rsa*
+id_ed25519*
+credentials*
+secrets*
