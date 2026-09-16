@@ -41,6 +41,8 @@ ssh -i /path/to/key user@robot
 私钥由接收者自行准备，交付包不包含任何密钥。机器人端必须先按
 [模块指南](MODULE_GUIDE.md) 安装模块、准备 ROS / AimDK 环境和本机配置。
 桌面会启动 `python3 -m x2ik mdi --stdio`，无需再启动另一个 MDI 进程。
+更换机器人前须由维护者完成[换机配置与现场核验](MODULE_GUIDE.md#更换机器人与现场标定)。
+桌面没有自动标定功能，连接成功和显示正常不表示补偿参数或工具 TCP 已完成标定。
 
 ## 3D 反馈与输入布局
 

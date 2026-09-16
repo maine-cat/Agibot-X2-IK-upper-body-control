@@ -48,8 +48,7 @@ def main():
             shutil.copy2(ROOT/source, target)
             if source == 'docs/HANDOVER.md':
                 target.write_text(target.read_text().replace(
-                    '(../packaging/share_docs/PROJECT_OVERVIEW.md)',
-                    '(docs/PROJECT_OVERVIEW.md)'))
+                    '(../packaging/share_docs/', '(docs/'))
         (stage/'THIRD_PARTY_NOTICES.txt').write_text(
             'Desktop: PyQt5/Qt, Python and OpenSSH; distribution notices are included below\n'
             'and inside the AppImage usr/licenses directory. Desktop source and build script\n'

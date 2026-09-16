@@ -10,6 +10,7 @@
 | --- | --- |
 | 整体架构、接口、逆运动学原理和能力边界 | [项目介绍](docs/PROJECT_OVERVIEW.md) |
 | 模块安装和 Python MoveJ | [模块指南](docs/MODULE_GUIDE.md) |
+| 换机配置、补偿参数与标定能力边界 | [更换机器人与现场标定](docs/MODULE_GUIDE.md#更换机器人与现场标定) |
 | 桌面连接、3D 反馈、MDI 输入 | [桌面 MDI](docs/DESKTOP_MDI_GUIDE.md) |
 | 坐标、关节顺序、单位与 TCP | [坐标说明](docs/COORDINATES.md) |
 | 源码结构、构建与上传范围 | [开发指南](CONTRIBUTING.md) |
