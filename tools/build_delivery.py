@@ -62,13 +62,10 @@ def main():
                 target.write_text(target.read_text().replace(
                     '(../packaging/share_docs/', '(docs/'))
         (stage/'THIRD_PARTY_NOTICES.txt').write_text(
-            'Desktop: PyQt5/Qt, Python and OpenSSH; distribution notices are included below\n'
-            'and inside the AppImage usr/licenses directory. Desktop source and build script\n'
-            'are provided in source/. Robot module requires an existing ROS/AimDK installation;\n'
-            'ROS/AimDK SDK binaries, credentials, local configuration, calibration and logs\n'
-            'are not included. Original x2_ultra URDF upstream declares Mulan PSL v2;\n'
-            'additional user-supplied STL provenance is recorded separately in\n'
-            'source/desktop/assets/README.md and source/THIRD_PARTY_NOTICES.md.\n\n'
+            'Component notices are provided in licenses/ and in the AppImage.\n'
+            'The model license is reproduced below; visual asset provenance is\n'
+            'recorded in source/desktop/assets/README.md. Retain applicable notices\n'
+            'when redistributing the software and model data.\n\n'
             + (ROOT/'THIRD_PARTY_NOTICES.md').read_text())
         for name, source in {
             'PyQt5': '/usr/share/doc/python3-pyqt5/copyright',
@@ -76,7 +73,6 @@ def main():
             'OpenSSH': '/usr/share/doc/openssh-client/copyright',
             'Python': '/usr/share/doc/python3.10/copyright',
             'NumPy': '/usr/share/doc/python3-numpy/copyright',
-            'Model': str(ROOT/'x2_urdf_upstream_README.md'),
         }.items():
             if Path(source).is_file():
                 target = stage/'licenses'/name

@@ -1,19 +1,18 @@
 # X2 MDI / MoveJ V2.1 交付说明
 
-本说明面向接收模块的使用者。公开入口只有机器人端 MDI 和 Python `Robot.moveJ()`；
-桌面客户端是 Linux x86_64 AppImage，通过 SSH 标准输入/输出连接机器人，不新增 HTTP 服务。
+本模块提供机器人端 MDI 和 Python `Robot.moveJ()` 两类接口。
+桌面客户端是 Linux x86_64 AppImage，通过 SSH 连接机器人。
 
 首次了解项目请先阅读[项目整体介绍与逆运动学原理](../packaging/share_docs/PROJECT_OVERVIEW.md)。
 仅在 URS 模式下支持运动，客户须自行切换；MDI 不带模式切换功能。
-产品版本 V2.1，Python/产物版本 `2.1.0`，源码本轮工作分支 `V2.0`。
+产品版本 V2.1，Python 包版本 `2.1.0`。
 
 ## 交付内容
 
-项目中的交付目录为 `delivery/x2ik-2.1.0/`。`SHA256SUMS` 列出本次实际提供的文件；
-在该目录执行 `sha256sum -c SHA256SUMS` 可检查完整性。
+解压交付包后，在 `x2ik-2.1.0/` 目录执行 `sha256sum -c SHA256SUMS` 可检查文件完整性。
 
 ```text
-delivery/x2ik-2.1.0/
+x2ik-2.1.0/
 ├── README.md
 ├── module/
 │   ├── x2ik-2.1.0-py3-none-any.whl
@@ -55,10 +54,9 @@ python3 -m x2ik movej
 ```
 
 最后一条默认只打印 HOME 目标，不连接或运动。需由现场维护者提供该机器的 `x2ik.conf`，
-并加载 ROS / AimDK 环境。客户 MDI / MoveJ 内置固定 `40 N·m/rad / 12° / pelvis` 补偿，
-不读取或要求创建 SN 标定文件。当前没有自动运动标定流程，固定参数也不代表新机精度验收。
-V2.1 支持四种 TCP 与离线平移拟合，见 [TCP 标定与文件填写](../packaging/share_docs/TCP_CALIBRATION_GUIDE.md)。
-换机仍需核对型号、模型、有效反馈与 IMU，并分别验证两臂，具体见
+并加载 ROS / AimDK 环境。MDI / MoveJ 内置固定 `40 N·m/rad / 12° / pelvis` 重力补偿。
+工具 TCP 支持四种模式与离线平移拟合，见 [TCP 标定与文件填写](../packaging/share_docs/TCP_CALIBRATION_GUIDE.md)。
+更换机器人后须核对型号、模型、有效反馈与 IMU，并分别验证两臂，具体见
 [模块指南](../packaging/share_docs/MODULE_GUIDE.md#更换机器人与现场标定)。
 
 若使用独立目录：
@@ -125,18 +123,16 @@ chmod +x desktop/X2-MDI-2.1.0-x86_64.AppImage
 显式启用发送后才允许下发。MDI 支持绝对位置/姿态、相对平移/旋转、关节目标与双臂 HOME。
 桌面 MDI 位置输入可选 m / mm，角度用 deg；这与 Python MoveJ 的 rad 不同。
 MDI 笛卡尔目标统一指所选 TCP；CLI 支持 `--tcp-mode` / `--tcp-file`。
-3D 外观来自配套 STL 的简化网格，未发现 STEP 资源；缺少有效资源时回退骨架，不作碰撞模型使用。
+3D 视图显示双臂简化模型和 TCP 坐标轴；模型不可用时显示骨架，不用于碰撞检测。
 
 本产品仅在 URS（`UPPERBODY_REMOTE_SPLIT`）模式下支持运动。客户须通过机器人原有
-操作工具自行切换到 URS。MDI 不带模式切换功能，也不提供任何配置开关开启该能力。
+操作工具自行切换到 URS。MDI 不带模式切换功能。
 HOME 会移动双臂，桌面停止下发、断线或关闭不会自动 HOME 或切换状态。
-停止下发不是硬件急停；SSH 和本地客户端仍有控制能力，应用形态不构成运动安全保证。
-当前模块没有碰撞规划，显示的 TCP 来自关节反馈的模型 FK，不是外部位置测量。
+停止下发不是硬件急停，操作时须保留机器人原有急停措施。
+模块没有碰撞规划，显示的 TCP 来自关节反馈的模型 FK；实际定位精度须通过外部测量验证。
 
-## 维护边界
+## 接口与许可
 
-业务使用者依赖 `Robot`、`HOME` 和 MDI 入口即可。包内其他模块是内部实现，
-旧 `X2Arm`、测试脚本、开发机路径及历史验收报告不属于该交付接口。
-完整项目的 `results/`、`backups/`、SDK、现场配置与标定不需要复制给一般使用者。
-桌面源码及构建脚本在 `source/`，随包组件的许可文件和说明在 `licenses/`、
+业务集成使用 `Robot`、`HOME` 和 MDI 入口。
+桌面源码、构建和标定工具在 `source/`，随包组件的许可文件和说明在 `licenses/`、
 `THIRD_PARTY_NOTICES.txt`，重新分发时应保留这些内容。

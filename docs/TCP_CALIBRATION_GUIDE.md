@@ -1,38 +1,31 @@
 # V2.1 TCP 选择、标定与文件填写
 
-V2.1（Python 包版本 `2.1.0`）为 MDI 和 MoveJ 增加同一套 TCP 配置。
+MDI 和 MoveJ 使用同一套 TCP 配置。
 TCP 是“希望控制或报告位置的工具坐标系”，配置描述它相对于本侧
 `left_wrist_roll_link` / `right_wrist_roll_link` 的固定平移与旋转。
-**默认 `none` 与旧版一致，TCP 在腕 roll 连杆原点。** 工具模式不会自动识别硬件。
+按实际安装工具选择 TCP 模式。默认模式为 `none`，TCP 位于腕 roll 连杆原点。
 
-本指南中的 TCP 几何标定与重力补偿是两件事。MDI / MoveJ 仍使用固定
+TCP 标定用于确定工具的几何位置与方向。MDI / MoveJ 使用固定重力补偿参数
 `40 N·m/rad / ±12° / pelvis`；选择工具不会更新质量、重心、关节零位或补偿参数。
-没有自动运动采样、自动换机标定或自动抓杯流程，离线拟合程序只读取文件。
-在线运动仍要求客户自行进入 URS，MDI 不提供模式切换。
+标定由操作者采集数据，离线拟合程序读取采样文件生成配置，不连接或驱动机器人。
+执行运动前请自行将机器人切换至 URS 模式；MDI 不提供模式切换。
 
-## 1. 四种模式及预置点在哪里
+## 1. TCP 模式与默认参数
 
 以下平移均在**本侧腕 roll 坐标系**中，单位 m，不是在 torso 坐标中直接加数值。
 
 | 界面选项 | `tcp_mode` | 腕到 TCP 平移 | 适用说明 |
 | --- | --- | --- | --- |
-| 无 | `none` | `[0, 0, 0]` | 腕原点；默认，历史腕部目标继续使用此模式 |
+| 无 | `none` | `[0, 0, 0]` | 默认模式，以腕原点作为目标点 |
 | 灵巧手 | `hand` | `[0.035, 0, -0.150]`，左右相同 | 手掌前方的**近似杯子抓取中心**；几何估计，非实测 |
-| 夹爪 | `gripper` | `[0, 0, -0.17608]`，左右相同 | URDF 固定中心坐标系的**名义抓取中心**；非实测 |
+| 夹爪 | `gripper` | `[0, 0, -0.17608]`，左右相同 | **名义抓取中心**；几何参考值，非实测 |
 | 自定义 TCP 工具 | `custom` | 从文件分别读取左右侧 | 适用于自己的工具、转接件或经测量修正的抓取点 |
 
-灵巧手目录中的 `scene.urdf` 没有明确的固定抓取 TCP。中指屈曲根部约在腕 -Z 160 mm，
-食指根部约 -Z 141 mm，手指正向屈曲朝腕 +X。预置因此取 +X 35 mm、-Z 150 mm
-作为大致杯子中心，方向沿同目录 `x2_31dof_omnihand_2.xml` 的掌坐标 `Rx(3.14)`。
-杯径、指节弯曲、实际接触以及转接件都会改变合适的中心。它不是 URDF 里已经定义好的抓取点，
-也不是经抓杯试验测出的参数。
+灵巧手与夹爪的默认抓取中心均为近似参考位置，未经实物抓杯标定。
+杯径、手指或夹爪的闭合程度、接触位置及转接件会影响实际抓取中心。
+需要精确定位时，请测量实际工作点，并使用 `custom` 模式加载标定结果。
 
-夹爪来源 `x2_ultra_plus_omnipicker_omnipicker.urdf` 明确定义
-`gripper_l_center_link` / `gripper_r_center_link`：由腕到 arm end、夹爪 base、center 的固定链合成。
-其 14 个手臂关节的几何与本项目基础模型一致。灵巧手整机模型的部分手臂几何不同；
-本版只提取工具参考和估计抓取点，**不会用它替换现有手臂关节几何**。
-
-旋转矩阵把 TCP 向量转换到对应腕坐标，左右不能盲目共用：
+旋转矩阵把 TCP 向量转换到对应腕坐标；请按左右侧分别使用以下参数：
 
 ```text
 none：R = I
@@ -48,9 +41,8 @@ R = [[ 0, -1,  0],          R = [[0, 1,  0],
      [ 0,  0, -1]]               [0, 0, -1]]
 ```
 
-源码中的预置文件 `assets/tcp_presets.json`（交付包中为 `source/assets/tcp_presets.json`）保存完整数值、来源文件 SHA256 和估计说明。
-**切换为灵巧手或夹爪只改变 TCP，不会收紧手指、开合夹爪、感知杯子或增加负载补偿。**
-原有 HOME 仍是同一组关节角，因此换 TCP 后 HOME 的 TCP 坐标会改变。
+**TCP 模式用于设置工具坐标，不控制手指或夹爪开合，不提供杯子感知或自动抓取。**
+HOME 对应固定的一组关节角；切换 TCP 后，同一 HOME 姿态的 TCP 坐标会改变。
 
 ## 2. 在 MDI 与 MoveJ 中选择
 
@@ -60,7 +52,7 @@ R = [[ 0, -1,  0],          R = [[0, 1,  0],
 `/path/to/robot/my_tcp.json`；先由维护者把测量文件放到机器人。
 桌面不会把本机文件自动上传，也不会把本机路径当成机器人路径。
 `--demo` 离线演示时才读取桌面本机文件。
-连接期间不能更换 TCP；停止发送并断开，修改后重新连接。连接仍默认只读。
+连接期间不能更换 TCP；停止发送并断开，修改后重新连接。连接默认只读。
 
 CLI 对应示例：
 
@@ -74,8 +66,8 @@ python3 -m x2ik mdi --stdio --tcp-mode hand
 ```
 
 `xyz/pose/d/R/t/rpy` 都解释为当前所选 TCP 的位置与方向；例如 `t` 绕的是工具轴。
-程序把工具目标换算为腕目标再做 IK。`j` 和 HOME 仍是关节目标，不因 TCP 模式改变。
-旧的腕原点笛卡尔目标不能直接用于新的工具模式，须重新核对。
+程序把工具目标换算为腕目标再做 IK。`j` 和 HOME 是关节目标，不因 TCP 模式改变。
+切换 TCP 模式后，请重新核对笛卡尔目标的位置与方向。
 
 ### Python MoveJ
 
@@ -109,7 +101,7 @@ python3 -m x2ik movej --tcp-mode custom --tcp-file /path/to/robot/my_tcp.json
 
 ## 3. 自定义文件逐项填写
 
-交付包模板为 `examples/tcp_tool.example.json`，源码模板为 `config/tcp_tool.example.json`。
+配置模板为交付包中的 `examples/tcp_tool.example.json`。
 模板的非零偏移仅演示格式，**没有在你的机器人或工具上验证，不能原样当标定结果下发**。
 
 ```json
@@ -149,7 +141,7 @@ python3 -m x2ik movej --tcp-mode custom --tcp-file /path/to/robot/my_tcp.json
 | `translation_m` | 腕原点指向 TCP 原点的三维向量，在腕坐标中表达 |
 | `rotation_matrix` | 3×3 正交、行列式 +1 的矩阵；列分别是 TCP 的 X/Y/Z 轴在腕坐标中的方向 |
 | `source` | 可选；测量依据、工具编号和日期，最多 2000 字符 |
-| `estimated` | 可选布尔值；几何估计填 `true`，不要用 `false` 冒充实测认证 |
+| `estimated` | 可选布尔值；几何估计填 `true`，经实测验证的配置填 `false` |
 | `description` | 可选；工作点、轴定义与适用条件，最多 2000 字符 |
 
 旋转和平移组成完整的刚体变换：
@@ -202,7 +194,7 @@ R_i · t + p_i = c
 2. 选择 `none`，保持 MDI 未启用发送。`--stdio --tcp-mode none` 的只读 `state` 包中，`arms.left/right.xyz` 和 `rpy_deg` 是腕原点姿态；不要混入 `hand/gripper/custom` 的已偏移 TCP 数据。
 3. 每次同一点可靠接触、机器人稳定后记录同一帧的位置与姿态，记录姿态编号。确认反馈新鲜，并用完整数值而非界面四舍五入的显示文本作拟合。
 4. 使用 torso FK 时，采集期间必须保持躯干相对外部参考点固定。若躯干移动，应利用同步外部跟踪把每帧腕姿态统一到固定参考系；只用 torso FK 无法识别躯干移动。
-5. 按下一节格式整理数据。FK 仍含模型/编码器误差；要求较高的实物精度时，使用外部测量腕姿态和独立验证点，不能仅凭拟合残差验收。
+5. 按下一节格式整理数据。FK 含模型/编码器误差；要求较高的实物精度时，使用外部测量腕姿态和独立验证点，不能仅凭拟合残差验收。
 
 RPY 先由 deg 转 rad，再按 `Rz(rz) @ Ry(ry) @ Rx(rx)` 转为矩阵；不要将 RPY 三个数填到 `rotation_matrix`。
 取样不需要调用 MoveJ，也不需要发布 `arm`、`mdi` 或 `home` 请求。
@@ -242,23 +234,16 @@ RPY 先由 deg 转 rad，再按 `Rz(rz) @ Ry(ry) @ Rx(rx)` 转为矩阵；不要
 }
 ```
 
-在源码根目录运行（只依赖 Python 与 NumPy，不要求安装机器人模块）：
-
-```bash
-python3 tools/calibrate_tcp.py --samples wrist_poses.json --output my_tcp.json
-```
-
-如果使用完整交付包，在交付根目录把脚本路径写为 `source/tools/calibrate_tcp.py`：
+安装 Python 与 NumPy 后，在交付包根目录运行离线标定工具：
 
 ```bash
 python3 source/tools/calibrate_tcp.py --samples wrist_poses.json --output my_tcp.json
 ```
 
-只标定左臂时，`samples` 与 `tcp_rotation_matrix` 都只保留 `left`，并提供已有双臂配置。
-下例使用源码路径；交付包中同样改用 `source/tools/calibrate_tcp.py`：
+只标定左臂时，`samples` 与 `tcp_rotation_matrix` 都只保留 `left`，并提供已有双臂配置：
 
 ```bash
-python3 tools/calibrate_tcp.py --samples left_wrist_poses.json \
+python3 source/tools/calibrate_tcp.py --samples left_wrist_poses.json \
   --base-file current_tcp.json --output updated_tcp.json
 ```
 

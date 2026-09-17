@@ -68,7 +68,7 @@ R = Rz(RZ) @ Ry(RY) @ Rx(RX)
 V2.1 可选 `hand`（灵巧手近似杯子抓取中心）、`gripper`（夹爪模型名义中心）或 `custom`。
 手预置相对腕平移 `[0.035, 0, -0.150] m`；夹爪 `[0, 0, -0.17608] m`。
 这些数值在**本侧腕坐标**中，不能直接加到 torso 位置上；夹爪左右固定旋转不同。
-完整旋转、来源、标定与文件填写见 [TCP 标定指南](TCP_CALIBRATION_GUIDE.md)。
+完整旋转参数、标定与文件填写见 [TCP 标定指南](TCP_CALIBRATION_GUIDE.md)。
 
 ```text
 p_tcp = p_wrist + R_wrist @ translation_m
@@ -77,8 +77,8 @@ R_tcp = R_wrist @ rotation_matrix
 
 MDI 的 `xyz/pose/d/R/t/rpy` 与反馈显示统一使用所选 TCP。
 Python MoveJ 的关节 `q` 和 HOME 不因工具变化，返回的 `position_m/rotation_matrix` 使用所选 TCP。
-手和夹爪预置是名义/估计点，非自动识别或实测抓取点，不包含手指开合或负载适配。
+手和夹爪预置是几何参考点，精确定位须标定实际工具；工具选择不控制手指开合或更新负载。
 
 界面 TCP 由关节反馈经模型 FK 得到，未包含未建模的装配偏差和工具外参误差。
 Python `err_max` 是结束瞬间最大关节误差 rad，不是 TCP 毫米误差。
-当前 MoveJ 不包含 TCP 1 mm 闭环；历史的反馈 FK 误差也不能等同于外部真实定位精度。
+MoveJ 不使用外部 TCP 位置反馈闭环；实际定位精度须通过独立测量验证。
