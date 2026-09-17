@@ -43,6 +43,8 @@ def main():
         run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir',
              '--name', 'x2-mdi-desktop', '--distpath', work/'frozen', '--workpath', work/'work',
              '--specpath', work, '--add-binary', '/usr/bin/ssh:bin',
+             '--paths', ROOT, '--add-data', str(ROOT/'assets') + ':assets',
+             '--add-data', str(ROOT/'desktop/assets') + ':assets',
              ROOT/'desktop/x2_mdi_desktop.py'], env=env)
         appdir = work/'X2-MDI.AppDir'
         shutil.copytree(work/'frozen/x2-mdi-desktop', appdir/'usr')
@@ -64,7 +66,10 @@ Categories=Development;Engineering;
         (appdir/'x2-mdi.svg').write_text('''<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" rx="52" fill="#132338"/><path d="M72 62L40 132L92 194M184 62L216 132L164 194" fill="none" stroke="#44cbb2" stroke-width="18" stroke-linecap="round"/><path d="M103 69H153V151H103Z" fill="#dde9f5"/><circle cx="92" cy="194" r="15" fill="#ffcb70"/><circle cx="164" cy="194" r="15" fill="#ffcb70"/></svg>''')
         (appdir/'usr/licenses').mkdir()
         for name, path in {'Qt-PyQt5': '/usr/share/doc/python3-pyqt5/copyright',
-                           'OpenSSH':'/usr/share/doc/openssh-client/copyright'}.items():
+                           'OpenSSH': '/usr/share/doc/openssh-client/copyright',
+                           'NumPy': '/usr/share/doc/python3-numpy/copyright',
+                           'Model-provenance.md': ROOT/'desktop/assets/README.md',
+                           'Third-party-notices.md': ROOT/'THIRD_PARTY_NOTICES.md'}.items():
             if Path(path).is_file():
                 shutil.copy2(path, appdir/'usr/licenses'/name)
         # Reuse the utility's official type-2 runtime; no hidden network downloads.
@@ -72,7 +77,7 @@ Categories=Development;Engineering;
         runtime = work/'runtime-x86_64'
         runtime.write_bytes(tool.read_bytes()[:offset])
         run([tool, '--appimage-extract'], cwd=work, stdout=subprocess.DEVNULL)
-        target = output/'X2-MDI-0.2.0-x86_64.AppImage'
+        target = output/'X2-MDI-2.1.0-x86_64.AppImage'
         staged_target = work/target.name
         build_env = {**env, 'ARCH':'x86_64'}
         run([work/'squashfs-root/AppRun', '--no-appstream', '--runtime-file', runtime,
@@ -89,6 +94,11 @@ Categories=Development;Engineering;
         info['desktop_sources_sha256'] = {
             p.name: hashlib.sha256(p.read_bytes()).hexdigest()
             for p in sorted((ROOT/'desktop').glob('*.py'))
+        }
+        info['support_files_sha256'] = {
+            p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in [ROOT/'x2_tcp.py', ROOT/'assets/tcp_presets.json', ROOT/'THIRD_PARTY_NOTICES.md',
+                      *sorted((ROOT/'desktop/assets').glob('*'))] if p.is_file()
         }
         (output/'APPIMAGE_BUILD_INFO.json').write_text(json.dumps(info, indent=2)+'\n')
         print(json.dumps(info, indent=2))

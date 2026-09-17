@@ -39,6 +39,7 @@ MDI 操作前端同时保留，入口 ./x2ik.py mdi，说明见 MDI_GUIDE.md。
 from __future__ import annotations
 
 import math
+import copy
 import os
 import threading
 import time
@@ -52,6 +53,7 @@ from x2_arm_model import ArmModel, matrix_to_rpy, rpy_to_matrix
 from x2_srs_ik import SrsArmIK
 from x2_frames import HOME_Q
 from x2_compensation import fixed_compensation
+from x2_tcp import load_tcp_tools
 
 #: 待机位关节角 (rad),7 个。move_j 的默认目标。
 HOME = HOME_Q.copy()
@@ -165,7 +167,7 @@ class X2Arm:
                  tcp_offset: Optional[Sequence[float]] = None,
                  payload: float = 0.0,
                  verbose: bool = True, *, robot_sn: Optional[str] = None,
-                 _fixed_compensation: bool = False):
+                 _fixed_compensation: bool = False, _tcp_tools=None):
         if side not in ("left", "right"):
             raise ValueError("side 必须是 'left' 或 'right'")
         self.side = side
@@ -173,8 +175,15 @@ class X2Arm:
         if connect and mode != "upper_body":
             raise ValueError("X2Arm 连接只允许 upper_body；本轮禁止状态切换和关节直控")
         offset = None if tcp_offset is None else _vector(tcp_offset, 3, "tcp_offset")
-        self.model = ArmModel(side, tcp_offset=offset)
-        self.solver = SrsArmIK(self.model)
+        if offset is not None and _tcp_tools is not None:
+            raise ValueError("tcp_offset 与 _tcp_tools 不能同时提供")
+        tools = load_tcp_tools() if _tcp_tools is None else copy.deepcopy(_tcp_tools)
+        if offset is not None:
+            tools[side].update(translation_m=offset.tolist(), mode="custom",
+                               name="legacy tcp_offset", source="explicit tcp_offset")
+        self.models, self.iks = self._build_tcp_models(tools)
+        self._tcp_tools = tools
+        self.model, self.solver = self.models[side], self.iks[side]
         self.cli = None
         self._ros = None
         self.robot_sn = robot_sn
@@ -185,6 +194,33 @@ class X2Arm:
         self._motion_lock = threading.Lock()
         if connect:
             self._connect(mode, stiffness, bias_limit_deg, gravity_source, payload)
+
+    @staticmethod
+    def _build_tcp_models(tools):
+        if not isinstance(tools, dict) or set(tools) != {"left", "right"}:
+            raise ValueError("TCP 工具必须同时提供 left 和 right")
+        models = {side: ArmModel(side, tcp_offset=tools[side]["translation_m"],
+                                 tcp_rotation=tools[side]["rotation_matrix"])
+                  for side in ("left", "right")}
+        return models, {side: SrsArmIK(model) for side, model in models.items()}
+
+    def _set_tcp_tools(self, tools):
+        """Replace both kinematic models atomically, never during an active motion.
+
+        Dynamics retain the physical wrist models created at connection time;
+        selecting a reporting/target frame must not alter gravity compensation.
+        """
+        tools = copy.deepcopy(tools)
+        models, iks = self._build_tcp_models(tools)
+        if not self._motion_lock.acquire(blocking=False):
+            raise RuntimeError("运动期间不能更改 TCP 工具")
+        try:
+            self.models, self.iks, self._tcp_tools = models, iks, tools
+            self.model, self.solver = models[self.side], iks[self.side]
+            if self.cli is not None:
+                self.cli.models, self.cli.iks = models, iks
+        finally:
+            self._motion_lock.release()
 
     def _connect(self, mode, stiffness, bias_limit_deg, gravity_source, payload):
         active = self._connected() if self._connected is not None else None
@@ -232,8 +268,7 @@ class X2Arm:
                                    gravity_source=gravity_source,
                                    bias_limit=math.radians(bias_limit_deg),
                                    verbose=self.verbose)
-            self.cli.models[self.side] = self.model
-            self.cli.iks[self.side] = self.solver
+            self.cli.models, self.cli.iks = self.models, self.iks
             if not self.cli.wait_state(timeout=10.0):
                 raise RuntimeError("等了 10s 收不到关节反馈。检查 ROS_DOMAIN_ID / "
                                "RMW_IMPLEMENTATION 是否与机器人一致,或跑 "
@@ -426,6 +461,10 @@ class X2Arm:
             error = measured - goals[side]
             result[side].update(q=measured, err=error, err_max=float(np.max(np.abs(error))),
                                 tau=client.tau(side), stale=False)
+            pos, rot = self.models[side].forward_kinematics(measured)
+            result[side].update(tcp=copy.deepcopy(self._tcp_tools[side]),
+                                position_m=pos.tolist(), rotation_matrix=rot.tolist(),
+                                pose_frame="torso_link")
         return result
 
     def move_j_both(self, q_left: Sequence[float], q_right: Sequence[float],

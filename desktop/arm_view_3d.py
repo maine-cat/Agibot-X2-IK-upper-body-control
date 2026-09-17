@@ -10,6 +10,11 @@ import math
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
+try:
+    from .arm_mesh import ArmMeshModel
+except ImportError:
+    from arm_mesh import ArmMeshModel
+
 
 def _dot(a, b):
     return sum(x * y for x, y in zip(a, b))
@@ -47,6 +52,16 @@ class ArmView(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.arms = {}
+        self.render_mode = 'mesh'
+        self._posed_meshes = {}
+        self._mesh_sources = {}
+        self._mesh_failures = {}
+        try:
+            self._mesh_model = ArmMeshModel()
+            self._mesh_error = ''
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            self._mesh_model = None
+            self._mesh_error = str(exc)
         self.azimuth, self.elevation = self.VIEWS['default']
         self.zoom = 1.
         self.pan = QtCore.QPointF()
@@ -72,7 +87,37 @@ class ArmView(QtWidgets.QWidget):
                     continue
                 valid[side] = copy.deepcopy(arm)
         self.arms = valid
+        self._posed_meshes = {}
+        self._mesh_sources = {}
+        self._mesh_failures = {}
+        if self._mesh_model is not None:
+            for side, arm in valid.items():
+                try:
+                    links, source = self._mesh_model.posed_links(side, arm)
+                    self._posed_meshes[side] = links
+                    self._mesh_sources[side] = source
+                except (ValueError, KeyError, TypeError) as exc:
+                    self._mesh_failures[side] = str(exc)
         self.update()
+
+    def set_render_mode(self, mode):
+        """Select a display style only; never changes robot or TCP data."""
+        if mode not in ('mesh', 'skeleton'):
+            raise ValueError('Unknown arm render mode: ' + str(mode))
+        self.render_mode = mode
+        self.update()
+
+    def render_status(self):
+        if self.render_mode == 'skeleton':
+            return '骨架示意'
+        if self._mesh_model is None:
+            return '骨架降级：实体资源不可用'
+        if self._mesh_failures:
+            sides = '、'.join('左臂' if side == 'left' else '右臂' for side in self._mesh_failures)
+            return sides + '骨架降级：关节位姿无效'
+        if 'packaged_fk' in self._mesh_sources.values():
+            return 'STL 实体 · 本地模型 FK'
+        return 'STL 实体 · 反馈位姿'
 
     def set_view(self, name):
         if name not in self.VIEWS:
@@ -102,6 +147,20 @@ class ArmView(QtWidgets.QWidget):
         return (QtCore.QPointF(self.width() * .5 + self.pan.x() + _dot(centered, right) * scale,
                               self.height() * .49 + self.pan.y() - _dot(centered, up) * scale),
                 _dot(centered, eye))
+
+    def _project_vertices(self, vertices):
+        """Batch projection avoids rebuilding the camera per mesh vertex."""
+        right, up, eye = self._basis()
+        scale = self._scale()
+        center_x = self.width() * .5 + self.pan.x()
+        center_y = self.height() * .49 + self.pan.y()
+        result = []
+        for x, y, z in vertices:
+            z += .035
+            result.append((QtCore.QPointF(center_x + (x*right[0]+y*right[1]+z*right[2])*scale,
+                                          center_y - (x*up[0]+y*up[1]+z*up[2])*scale),
+                           x*eye[0]+y*eye[1]+z*eye[2]))
+        return result
 
     def mousePressEvent(self, event):
         if event.button() in (QtCore.Qt.LeftButton, QtCore.Qt.RightButton, QtCore.Qt.MiddleButton):
@@ -198,16 +257,47 @@ class ArmView(QtWidgets.QWidget):
             points = [vertices[i] for i in indices]
             primitives.append((sum(self.project_point(p)[1] for p in points) / 4., 'torso', points, None))
         for side, arm in self.arms.items():
-            for a, b in zip(arm['points'], arm['points'][1:]):
-                depth = (self.project_point(a)[1] + self.project_point(b)[1]) * .5
-                primitives.append((depth, 'link', (a, b), side))
-            # Coincident wrist frames should not stack opaque circles.
-            unique = {tuple(point) for point in arm['points']}
-            for point in unique:
-                primitives.append((self.project_point(point)[1] + .00001, 'joint', point, side))
+            if self.render_mode == 'mesh' and side in self._posed_meshes:
+                eye = self._basis()[2]
+                for link in self._posed_meshes[side]:
+                    projected = self._project_vertices(link['vertices'])
+                    for face, normal in zip(link['faces'], link['normals']):
+                        facing = _dot(normal, eye)
+                        if facing <= 0.:
+                            continue
+                        # Directional lighting plus camera fill. Mesh is coloured
+                        # by arm so the same L/R convention survives all views.
+                        light = max(0., _dot(normal, (.35, -.2, .915)))
+                        shade = int(max(58, min(112, 62 + 30*light + 18*facing)))
+                        depth = sum(projected[i][1] for i in face) / 3.
+                        polygon = QtGui.QPolygonF([projected[i][0] for i in face])
+                        primitives.append((depth, 'mesh', (polygon, shade), side))
+            else:
+                for a, b in zip(arm['points'], arm['points'][1:]):
+                    depth = (self.project_point(a)[1] + self.project_point(b)[1]) * .5
+                    primitives.append((depth, 'link', (a, b), side))
+                # Coincident wrist frames should not stack opaque circles.
+                unique = {tuple(point) for point in arm['points']}
+                for point in unique:
+                    primitives.append((self.project_point(point)[1] + .00001, 'joint', point, side))
             primitives.append((self.project_point(arm['xyz'])[1] + .00002, 'tcp', arm['xyz'], side))
+        mesh_brushes = {}
         for depth, kind, points, side in sorted(primitives, key=lambda item: item[0]):
-            if kind == 'torso':
+            if kind == 'mesh':
+                polygon, shade = points
+                key = (side, shade)
+                if key not in mesh_brushes:
+                    base = QtGui.QColor(self.COLORS[side])
+                    mesh_brushes[key] = QtGui.QColor(*(min(255, int(c * shade / 100.))
+                        for c in (base.red(), base.green(), base.blue())))
+                # Avoid antialias seams between adjacent triangles. The mesh
+                # silhouette remains dense enough for software rendering.
+                painter.setRenderHint(QtGui.QPainter.Antialiasing, False)
+                painter.setPen(QtCore.Qt.NoPen)
+                painter.setBrush(mesh_brushes[key])
+                painter.drawPolygon(polygon)
+                painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+            elif kind == 'torso':
                 painter.setPen(self._pen('#466075', 1., QtCore.Qt.DashLine))
                 painter.setBrush(QtGui.QColor(32, 50, 65, 90))
                 painter.drawPolygon(QtGui.QPolygonF([self.project_point(v)[0] for v in points]))
@@ -256,7 +346,7 @@ class ArmView(QtWidgets.QWidget):
         font.setBold(True)
         painter.setFont(font)
         painter.setPen(QtGui.QColor('#e1ecf6'))
-        painter.drawText(17, 25, '3D 双臂反馈')
+        painter.drawText(17, 25, '3D 双臂反馈 · ' + self.render_status())
         font.setBold(False)
         font.setPixelSize(12)
         painter.setFont(font)

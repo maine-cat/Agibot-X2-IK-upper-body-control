@@ -1,4 +1,4 @@
-# 机器人模块与 Python MoveJ
+# V2.1 机器人模块与 Python MoveJ
 
 本模块只提供 MDI 和 MoveJ 两类公开入口。运行依赖为 Python 3.10 或以上、NumPy，
 以及机器人现有的 ROS 2 / AimDK 消息环境。交付包不包含 ROS、SDK、现场配置或标定。
@@ -11,7 +11,7 @@ MDI 和 MoveJ 均不带模式切换功能。**
 以下路径均为占位符，须替换为接收者自己的目录。在交付目录安装 wheel：
 
 ```bash
-python3 -m pip install module/x2ik-0.2.0-py3-none-any.whl
+python3 -m pip install module/x2ik-2.1.0-py3-none-any.whl
 export X2IK_CONFIG=/path/to/robot/x2ik.conf
 python3 -m x2ik --help
 python3 -m x2ik movej
@@ -25,7 +25,7 @@ MDI 与命令行 MoveJ 会按配置加载相应环境。
 如果使用独立目录部署，可用 runtime 压缩包替代 wheel：
 
 ```bash
-tar -xzf module/x2ik-runtime-0.2.0.tar.gz -C /path/to/robot
+tar -xzf module/x2ik-runtime-2.1.0.tar.gz -C /path/to/robot
 cd /path/to/robot/runtime
 export X2IK_CONFIG=/path/to/robot/x2ik.conf
 python3 -m x2ik --help
@@ -77,11 +77,17 @@ q_send = joint_limit_clip(q + Δq)
    若要求真实工具 TCP 精度，须另行使用外部测量。反馈 FK 到点不表示外部定位误差达到 1 mm。
 5. 保存模块版本、机器人/固件、工具与负载、使用范围及验证记录。换工具、负载或影响控制行为的固件后，重新核验。
 
-客户接口当前以腕 roll 连杆原点作为 TCP，没有公开的工具外参、工具负载或装配误差配置入口。
-更换工具或模型不匹配时需要维护侧适配，不能只复用固定补偿就认定精度满足要求。
+V2.1 提供 `none / hand / gripper / custom` 四种 TCP，默认 `none` 为腕原点。
+灵巧手为近似杯子抓取点，夹爪为模型名义中心；实际工具外参可通过自定义文件填写完整平移与旋转。
+具体位置、标定采样与文件格式见 [TCP 标定指南](TCP_CALIBRATION_GUIDE.md)。
+工具模式不录入质量/重心、不改变固定补偿、不校正装配误差，也不控制手指或夹爪开合。
+模型不匹配仍需维护侧适配，不能只复用固定补偿就认定精度满足要求。
 仅更换运行软件的电脑、机器人与工具不变时，不会因此要求重新几何标定，但仍需核对连接目标与配置。
 
 ### 自动标定和旧工程工具的边界
+
+V2.1 的 `tools/calibrate_tcp.py` 支持已采集腕姿态的离线枢轴拟合，只求 TCP 平移；
+工具旋转必须独立给定。它不连接机器人、不采集运动、不做自动刚度或负载标定。
 
 自动标定可以继续开发，但当前缺少完整的采样保持、有效样本判定、异常退出和独立实机验证流程。
 仅靠模型力矩与关节误差拟合会混入摩擦、零位、装配及负载影响，尚不能作为客户一键换机标定功能。
@@ -108,8 +114,9 @@ python3 examples/movej_minimal.py --execute   # 实际执行右臂 HOME
 ```python
 from x2ik import Robot, HOME
 
-with Robot() as robot:
+with Robot(tcp_mode="gripper") as robot:
     result = robot.moveJ(HOME, side="right", duration=8, settle=2)
+    print(result["position_m"], result["tcp"])  # 所选 TCP 的反馈 FK 与定义
     print(result["err_max"])  # 结束瞬间最大关节误差，rad
 ```
 
@@ -124,9 +131,15 @@ with Robot() as robot:
 `duration` 为有限正秒数，`settle` 为有限非负秒数。
 关节顺序和单位见 [坐标说明](COORDINATES.md)。
 
-单臂返回 `{q, err, err_max, tau, stale}`：`q` 为末帧反馈，`err` 为反馈减目标，
+单臂返回 `{q, err, err_max, tau, stale, tcp, position_m, rotation_matrix, pose_frame}`：`q` 为末帧反馈，`err` 为反馈减目标，
 两者均为七维 rad；`err_max` 为最大绝对关节误差 rad，`tau` 为反馈 effort，`stale` 成功时为 `False`。
-双臂返回 `{"left": 单臂结果, "right": 单臂结果}`。反馈不满足条件时抛异常。
+`position_m` / `rotation_matrix` 是结束反馈对应的 TCP 位姿，`pose_frame="torso_link"`；
+`tcp` 保存本侧模式、工具变换、来源及估计标记。双臂返回 `{"left": 单臂结果, "right": 单臂结果}`。反馈不满足条件时抛异常。
+
+构造参数为 `Robot(tcp_mode="none", tcp_file=None, robot_sn=None, verbose=True)`。
+可调用 `robot.moveJ(q, side="right", tcp_mode="hand")` 顺序更换工具；省略覆盖参数时沿用当前选择。
+`custom` 需 `tcp_file`，该路径由运行 Python 的机器读取；其他模式不接受文件。
+TCP 只改变反馈位姿和笛卡尔解释，不改变 `q`、HOME 或关节插值，也不增加抓取和负载功能。
 
 一个实例使用同一通路控制两臂，方法顺序阻塞执行，返回后不后台保持。
 连接与动作包含 URS、反馈、IMU、发布独占和限位等检查；异常后停止当前序列，
@@ -146,7 +159,11 @@ sh examples/mdi_minimal.sh --execute --side right    # 在线终端 MDI，可能
 在线终端的 `q!` 停止发送退出；普通 `q` 会先执行双臂 HOME。
 `--dry` 允许反馈订阅，不等于离线仿真。桌面窗口关闭则不自动 HOME。
 
-底层等价入口为 `python3 -m x2ik mdi`；桌面使用 `python3 -m x2ik mdi --stdio`。
+入口为 `python3 -m x2ik mdi`；桌面使用 `python3 -m x2ik mdi --stdio`。
+二者支持启动参数 `--tcp-mode none|hand|gripper|custom`，自定义追加
+`--tcp-file /path/to/robot/my_tcp.json`。例如 `python3 -m x2ik mdi --dry --tcp-mode gripper`。
+TCP 在 MDI 会话启动时确定，更换需退出/断开后重新启动；MDI 的笛卡尔位置与姿态都指所选 TCP。
+命令行 MoveJ 也支持这两个参数，默认离线，显式 `--execute` 才运动。
 它们与 Python MoveJ 共用同一机器人指令通路，不能同时发运动。
 
 模块内部文件不作为业务接口承诺。更新模块时保留本机配置、标定、SDK 和已有结果；

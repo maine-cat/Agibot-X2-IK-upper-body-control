@@ -231,6 +231,75 @@ class DesktopTests(unittest.TestCase):
                 np.testing.assert_allclose(actual['rpy_deg'], np.degrees(matrix_to_rpy(r)), atol=1e-10)
                 np.testing.assert_allclose(actual['points'][:-1], points, atol=1e-12)
 
+    def test_tcp_demo_presets_and_custom_match_model(self):
+        import numpy as np
+        from x2_arm_model import ArmModel
+        for mode in ui.TCP_MODES:
+            filename = ROOT / 'config/tcp_tool.example.json' if mode == 'custom' else None
+            tools = ui.load_tcp_tools(mode, filename)
+            for side in ('left', 'right'):
+                tool = tools[side]
+                actual = ui.demo_fk(side, ui.HOME_DEG, tool)
+                model = ArmModel(side, tcp_offset=tool['translation_m'],
+                                 tcp_rotation=tool['rotation_matrix'])
+                p, _ = model.forward_kinematics(np.radians(ui.HOME_DEG))
+                points, rotations = model.joint_frames(np.radians(ui.HOME_DEG))
+                np.testing.assert_allclose(actual['xyz'], p, atol=1e-12)
+                np.testing.assert_allclose([x['xyz'] for x in actual['link_transforms']], points, atol=1e-12)
+                np.testing.assert_allclose([x['rotation'] for x in actual['link_transforms']], rotations, atol=1e-12)
+                self.assertEqual(actual['tcp'], tool)
+
+    def test_tcp_selection_locked_until_disconnect(self):
+        w = self.window
+        w.tcp_mode.setCurrentIndex(w.tcp_mode.findData('hand'))
+        self.connect()
+        self.assertEqual(w.state['tcp_mode'], 'hand')
+        self.assertFalse(w.tcp_mode.isEnabled())
+        self.assertFalse(w.tcp_file.isEnabled())
+        self.assertIn('估计值', w.readout.text())
+        history = copy.deepcopy(w.backend.history)
+        state = copy.deepcopy(w.state)
+        for mode in ('skeleton', 'mesh'):
+            w.render_mode.setCurrentIndex(w.render_mode.findData(mode))
+            self.pump()
+            self.assertEqual(w.arm_view.render_mode, mode)
+        self.assertEqual(w.backend.history, history)
+        self.assertEqual(w.state, state)
+        w.disconnect_button.click()
+        self.assertTrue(w.tcp_mode.isEnabled())
+
+    def test_tcp_mismatch_or_old_backend_blocks_all_commands(self):
+        w = self.connect()
+        self.arm()
+        for mode in ('hand', None):
+            bad = copy.deepcopy(w.state)
+            bad['tcp_mode'] = mode
+            w.on_message(bad)
+            self.assertTrue(w.inhibit)
+            for button in (w.arm_button, w.preview_button, w.execute_button, w.home_button, w.fill_button):
+                self.assertFalse(button.isEnabled())
+        self.assertTrue(w.disarm_button.isEnabled())
+
+    def test_custom_tcp_ssh_quoted_path_and_no_upload(self):
+        filename = "/tmp/cup 'tool' $(not-a-command).json"
+        args = ui.ssh_arguments('user@robot', '/tmp/runtime', '/tmp/conf',
+                                tcp_mode='custom', tcp_file=filename)
+        tokens = shlex.split(args[-1])
+        self.assertEqual(tokens[tokens.index('--tcp-mode') + 1], 'custom')
+        self.assertEqual(tokens[tokens.index('--tcp-file') + 1], filename)
+        for mode, path in (('bad', None), ('custom', None), ('custom', 'relative.json'),
+                           ('custom', '/tmp/new\nline'), ('none', '/tmp/tool.json')):
+            with self.assertRaises(ValueError):
+                ui.ssh_arguments('user@robot', '/tmp/runtime', '/tmp/conf', tcp_mode=mode, tcp_file=path)
+
+    def test_invalid_custom_demo_file_fails_before_connect(self):
+        w = self.window
+        w.tcp_mode.setCurrentIndex(w.tcp_mode.findData('custom'))
+        w.tcp_file.setText('/nonexistent/x2-tool.json')
+        self.connect()
+        self.assertIsNone(w.backend)
+        self.assertFalse(w.execute_button.isEnabled())
+
 
 if __name__ == '__main__':
     unittest.main()

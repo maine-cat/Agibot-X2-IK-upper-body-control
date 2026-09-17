@@ -21,7 +21,9 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 # Permit both the standalone script and imports from the project test runner.
 if not getattr(sys, 'frozen', False):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from arm_view_3d import ArmView
+from x2_tcp import TCP_MODES, load_tcp_tools, wrist_to_tcp
 
 MODES = {
     'xyz': ('绝对位置', ('X', 'Y', 'Z')),
@@ -34,6 +36,8 @@ MODES = {
 }
 HOME_DEG = [math.degrees(.4), 0., 0., math.degrees(-1.2), 0., 0., 0.]
 URS_NOTICE = '仅支持 URS 模式；请先使用机器人原有操作方式切换到 URS，MDI 不提供模式切换。'
+TCP_LABELS = {'none': '无（腕原点）', 'hand': '灵巧手（估计杯心）',
+              'gripper': '夹爪（名义杯心）', 'custom': '自定义 TCP 工具'}
 
 
 def is_urs(action):
@@ -41,7 +45,7 @@ def is_urs(action):
         r'(?:URS|US|UPPERBODY_REMOTE_SPLIT)(?:\(\d+\))?', action.strip()) is not None
 
 
-def ssh_arguments(host, remote, config, python='python3', identity=''):
+def ssh_arguments(host, remote, config, python='python3', identity='', tcp_mode='none', tcp_file=None):
     """One quoted remote shell command; no locally evaluated shell or options."""
     if not re.fullmatch(r'[A-Za-z0-9_.-]+@[A-Za-z0-9_.:-]+', host) or '@-' in host:
         raise ValueError('SSH 地址应为 user@host，不包含空格或选项')
@@ -49,8 +53,18 @@ def ssh_arguments(host, remote, config, python='python3', identity=''):
         raise ValueError('机器人运行目录和配置必须为绝对路径')
     if any('\x00' in value or '\n' in value for value in (remote, config, python, identity)):
         raise ValueError('路径不能包含换行或空字符')
+    if tcp_mode not in TCP_MODES:
+        raise ValueError('未知 TCP 模式')
+    if tcp_mode == 'custom':
+        if not isinstance(tcp_file, str) or not tcp_file.startswith('/') or any(c in tcp_file for c in ('\n', '\x00')):
+            raise ValueError('自定义 TCP 文件须为机器人上的绝对路径')
+    elif tcp_file:
+        raise ValueError('仅自定义 TCP 模式接受标定文件')
     command = 'cd -- {} && exec env {} {} -m x2ik mdi --stdio'.format(
         shlex.quote(remote), shlex.quote('X2IK_CONFIG=' + config), shlex.quote(python))
+    command += ' --tcp-mode ' + shlex.quote(tcp_mode)
+    if tcp_mode == 'custom':
+        command += ' --tcp-file ' + shlex.quote(tcp_file)
     args = ['-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
             '-o', 'ConnectTimeout=8', '-o', 'ServerAliveInterval=2',
             '-o', 'ServerAliveCountMax=2']
@@ -93,8 +107,8 @@ class SshBackend(QtCore.QObject):
         self.closing = False
         self.counter = 0
 
-    def connect_to(self, host, remote, config, python, identity):
-        args = ssh_arguments(host, remote, config, python, identity)
+    def connect_to(self, host, remote, config, python, identity, tcp_mode='none', tcp_file=None):
+        args = ssh_arguments(host, remote, config, python, identity, tcp_mode, tcp_file)
         self.closing = False
         self.buffer = b''
         self.process.start('ssh', args)
@@ -172,7 +186,9 @@ class DemoBackend(QtCore.QObject):
         self.counter = 0
         self.history = []
 
-    def connect_to(self, *_args):
+    def connect_to(self, host='', remote='', config='', python='', identity='', tcp_mode='none', tcp_file=None):
+        self.tcp_mode = tcp_mode
+        self.tools = load_tcp_tools(tcp_mode, tcp_file)
         self.active = True
         self.armed = False
         self.timer.start(200)
@@ -182,7 +198,8 @@ class DemoBackend(QtCore.QObject):
         if self.active:
             self.message.emit(dict(type='state', demo=True, connected=True,
                 armed=self.armed, busy=self.busy, action=self.action, fresh=True,
-                urs_confirmed=is_urs(self.action), arms={s: demo_fk(s, q) for s, q in self.q.items()}))
+                urs_confirmed=is_urs(self.action), tcp_mode=self.tcp_mode,
+                arms={s: demo_fk(s, q, self.tools[s]) for s, q in self.q.items()}))
 
     def send(self, op, **kw):
         if not self.active:
@@ -258,7 +275,7 @@ class Window(QtWidgets.QWidget):
         self.pending = None
         self.inhibit = True
         self.connecting = False
-        self.setWindowTitle('X2 · MDI 桌面控制台' + (' [离线演示]' if args.demo else ''))
+        self.setWindowTitle('X2 · MDI V2.1 桌面控制台' + (' [离线演示]' if args.demo else ''))
         self.resize(1140, 900)
         self._build()
         self.timer = QtCore.QTimer(self)
@@ -289,7 +306,7 @@ class Window(QtWidgets.QWidget):
         scroll.setWidget(content)
         outer.addWidget(scroll)
         root = QtWidgets.QVBoxLayout(content)
-        title = QtWidgets.QLabel('X2  /  MDI 桌面控制台')
+        title = QtWidgets.QLabel('X2  /  MDI V2.1 桌面控制台')
         title.setStyleSheet('font-size: 23px; font-weight: bold; padding: 2px;')
         root.addWidget(title)
         note = '离线演示 · 本地 FK 示例 · 无 SSH/机器人连接；笛卡尔 IK 需真实后端' if self.args.demo else 'SSH 加密连接 · 连接后默认只读 · 位置 m / mm，角度 °'
@@ -316,6 +333,20 @@ class Window(QtWidgets.QWidget):
         self.disconnect_button.clicked.connect(self.disconnect_backend)
         grid.addWidget(self.connect_button, 0, 2, 2, 1)
         grid.addWidget(self.disconnect_button, 2, 2, 2, 1)
+        self.tcp_mode = QtWidgets.QComboBox()
+        for mode in TCP_MODES:
+            self.tcp_mode.addItem(TCP_LABELS[mode], mode)
+        self.tcp_mode.setCurrentIndex(self.tcp_mode.findData(self.args.tcp_mode))
+        self.tcp_file = QtWidgets.QLineEdit(self.args.tcp_file or '')
+        self.tcp_file.setPlaceholderText('/path/to/robot/my_tcp.json（离线演示填写本机路径）')
+        tcp_group, _ = input_group('TCP 工具', self.tcp_mode)
+        file_group, _ = input_group('TCP 文件', self.tcp_file)
+        grid.addWidget(tcp_group, 4, 0, 1, 3)
+        grid.addWidget(file_group, 5, 0, 1, 3)
+        self.tcp_notice = QtWidgets.QLabel('连接前选择 TCP；切换需先断开。灵巧手/夹爪为估计抓取中心，不控制开合。')
+        self.tcp_notice.setWordWrap(True)
+        grid.addWidget(self.tcp_notice, 6, 0, 1, 3)
+        self.tcp_mode.currentIndexChanged.connect(self.refresh_controls)
         root.addWidget(connection)
         self.status = QtWidgets.QLabel('未连接 · 未启用发送')
         self.status.setStyleSheet('font-weight: bold; padding: 4px;')
@@ -330,10 +361,17 @@ class Window(QtWidgets.QWidget):
             button.clicked.connect(lambda _checked=False, view=name: self.arm_view.set_view(view))
             self.view_buttons[name] = button
             view_tools.addWidget(button)
+        self.render_mode = QtWidgets.QComboBox()
+        self.render_mode.addItem('实体模型', 'mesh')
+        self.render_mode.addItem('骨架', 'skeleton')
+        self.render_mode.setToolTip('仅改变显示方式，不发送机器人指令')
+        self.render_mode.currentIndexChanged.connect(
+            lambda: self.arm_view.set_render_mode(self.render_mode.currentData()))
+        view_tools.addWidget(self.render_mode)
         view_tools.addStretch(1)
         root.addLayout(view_tools)
         root.addWidget(self.arm_view, 1)
-        legend = QtWidgets.QLabel('<span style="color:#168875">● 左臂</span>　<span style="color:#aa651b">● 右臂</span>　圆点：关节 / TCP · RGB 轴：X / Y / Z · 3D 骨架反馈，不含碰撞模型')
+        legend = QtWidgets.QLabel('<span style="color:#168875">● 左臂</span>　<span style="color:#aa651b">● 右臂</span>　圆点：TCP · RGB 轴：X / Y / Z · 实体网格反馈，不含碰撞规划')
         root.addWidget(legend)
         self.readout = QtWidgets.QLabel('左臂 —\n右臂 —')
         self.readout.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
@@ -444,9 +482,11 @@ class Window(QtWidgets.QWidget):
         self.backend.disconnected.connect(self.on_disconnect)
         try:
             self.backend.connect_to(self.host.text().strip(), self.remote.text().strip(),
-                self.config.text().strip(), self.args.python, self.identity.text().strip())
+                self.config.text().strip(), self.args.python, self.identity.text().strip(),
+                self.tcp_mode.currentData(), self.tcp_file.text().strip() or None
+                if self.tcp_mode.currentData() == 'custom' else None)
             self.append_log('开始离线演示' if self.args.demo else '等待 SSH 与机器人反馈（主机密钥必须预先验证）')
-        except (ValueError, RuntimeError) as exc:
+        except (ValueError, RuntimeError, OSError) as exc:
             self.on_disconnect(str(exc))
         self.refresh_controls()
 
@@ -480,6 +520,8 @@ class Window(QtWidgets.QWidget):
                 self.trip('反馈不完整或过期，停止发送')
             elif not self.urs_confirmed():
                 self.trip('未确认 URS 模式，停止发送；请在机器人原有操作界面确认')
+            elif not self.tcp_matches():
+                self.trip('后端 TCP 模式未确认或不一致，请确认机器人运行 V2.1 模块后重连')
             arms = value.get('arms', {}) if self.is_fresh() else {}
             self.arm_view.set_arms(arms)
             lines = []
@@ -489,8 +531,12 @@ class Window(QtWidgets.QWidget):
                     lines.append(label + ' — 无有效反馈')
                     continue
                 values = lambda key, precision: '  '.join(f'{v:+.{precision}f}' for v in a[key])
+                tool = a.get('tcp', {})
+                tool_label = TCP_LABELS.get(tool.get('mode'), '未确认')
                 lines.append(f'{label}  XYZ [m] {values("xyz", 4)}    RPY [°] {values("rpy_deg", 1)}\n'
-                             f'       J1…J7 [°] {values("q_deg", 1)}')
+                             f'       J1…J7 [°] {values("q_deg", 1)}\n'
+                             f'       TCP {tool_label} · {tool.get("name", "—")}'
+                             + (' · 估计值，未实测' if tool.get('estimated') else ''))
             self.readout.setText('\n'.join(lines))
         elif value['type'] == 'result':
             if self.pending and value.get('id') == self.pending[0]:
@@ -509,26 +555,33 @@ class Window(QtWidgets.QWidget):
     def urs_confirmed(self):
         return is_urs(self.state.get('action')) and self.state.get('urs_confirmed', True) is True
 
+    def tcp_matches(self):
+        return self.state.get('tcp_mode') == self.tcp_mode.currentData()
+
     def refresh_controls(self):
         fresh = self.is_fresh()
         busy = bool(self.state.get('busy') or self.pending)
         urs = self.urs_confirmed()
-        armed = fresh and urs and self.state.get('armed', False) and not self.inhibit
+        tcp_ok = self.tcp_matches()
+        armed = fresh and urs and tcp_ok and self.state.get('armed', False) and not self.inhibit
         idle = fresh and not busy
         self.connect_button.setEnabled(self.backend is None)
         self.disconnect_button.setEnabled(self.backend is not None)
         for field in (self.host, self.remote, self.config, self.identity):
             field.setEnabled(self.backend is None and not self.args.demo)
-        self.arm_button.setEnabled(idle and urs and not armed)
+        self.tcp_mode.setEnabled(self.backend is None)
+        self.tcp_file.setEnabled(self.backend is None and self.tcp_mode.currentData() == 'custom')
+        self.arm_button.setEnabled(idle and urs and tcp_ok and not armed)
         self.arm_button.setToolTip('确认 URS 且双臂反馈新鲜后才能启用发送。' + URS_NOTICE)
         self.disarm_button.setEnabled(self.backend is not None)
-        self.preview_button.setEnabled(idle)
+        self.preview_button.setEnabled(idle and tcp_ok)
         self.execute_button.setEnabled(idle and armed and urs)
         self.home_button.setEnabled(idle and armed and urs)
-        self.fill_button.setEnabled(idle)
+        self.fill_button.setEnabled(idle and tcp_ok)
         connection = '连接中' if self.connecting else ('反馈正常' if fresh else ('反馈过期 / 不完整' if self.backend else '未连接'))
         self.status.setText(f'{connection}  ·  运控 {self.state.get("action") or "—"}  ·  '
-            + ('已启用发送' if armed else '只读 / 发送关闭') + ('  ·  忙：不接受新指令' if busy else ''))
+            + ('已启用发送' if armed else '只读 / 发送关闭') + ('  ·  忙：不接受新指令' if busy else '')
+            + '  ·  TCP ' + (TCP_LABELS[self.tcp_mode.currentData()] if tcp_ok else '未确认'))
         self.reason.setText(('未确认 URS 模式，当前仅可查看反馈与预检；请在机器人原有操作界面确认。' if fresh and not urs else '')
             + '停止发送会关闭保持发布，不会自动回 HOME；这不是硬件急停。')
 
@@ -613,14 +666,14 @@ class Window(QtWidgets.QWidget):
         event.accept()
 
 
-def demo_fk(side, q_deg):
+def demo_fk(side, q_deg, tool=None):
     """Pure-Python FK from the shipped URDF snapshot, for offline UI examples."""
     def mm(a, b):
         return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
     def mv(a, v):
         return [sum(a[i][j] * v[j] for j in range(3)) for i in range(3)]
     rot = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]
-    pos, points = [0., 0., 0.], []
+    pos, points, transforms = [0., 0., 0.], [], []
     for angle, geom in zip(q_deg, DEMO_GEOMETRY[side]):
         offset = mv(rot, geom['xyz'])
         pos = [a + b for a, b in zip(pos, offset)]
@@ -631,9 +684,17 @@ def demo_fk(side, q_deg):
              [y*x*(1-c)+z*s, c+y*y*(1-c), y*z*(1-c)-x*s],
              [z*x*(1-c)-y*s, z*y*(1-c)+x*s, c+z*z*(1-c)]]
         rot = mm(mm(rot, geom['rot']), a)
+        transforms.append(dict(xyz=pos.copy(), rotation=copy.deepcopy(rot)))
+    tool = load_tcp_tools('none')[side] if tool is None else tool
+    tcp_pos, tcp_rot = wrist_to_tcp(pos, rot, tool)
+    pos, rot = tcp_pos.tolist(), tcp_rot.tolist()
     pitch = math.asin(max(-1., min(1., -rot[2][0])))
-    roll, yaw = math.atan2(rot[2][1], rot[2][2]), math.atan2(rot[1][0], rot[0][0])
-    return dict(q_deg=q_deg.copy(), xyz=pos, rpy_deg=[math.degrees(a) for a in (roll, pitch, yaw)], points=points + [pos.copy()])
+    if math.hypot(rot[0][0], rot[1][0]) < 1e-9:
+        roll, yaw = 0., math.atan2(-rot[0][1], rot[1][1])
+    else:
+        roll, yaw = math.atan2(rot[2][1], rot[2][2]), math.atan2(rot[1][0], rot[0][0])
+    return dict(q_deg=q_deg.copy(), xyz=pos, rpy_deg=[math.degrees(a) for a in (roll, pitch, yaw)],
+                points=points + [pos.copy()], link_transforms=transforms, tcp=copy.deepcopy(tool))
 
 
 def parser():
@@ -644,6 +705,8 @@ def parser():
     ap.add_argument('--config', default='/home/agi/x2ik/x2ik.conf')
     ap.add_argument('--identity', default='')
     ap.add_argument('--python', default='python3')
+    ap.add_argument('--tcp-mode', choices=TCP_MODES, default='none')
+    ap.add_argument('--tcp-file', help='Custom JSON path on the robot; local file for --demo')
     ap.add_argument('--smoke-test', action='store_true', help='Build real Qt window, exercise local demo and gates; never SSH')
     ap.add_argument('--screenshot', help='Optional PNG from smoke test or demo')
     return ap
@@ -661,6 +724,8 @@ def smoke_test(app, args):
     w.connect_button.click()
     pump()
     assert w.is_fresh() and complete_arms(w.state['arms'])
+    assert w.arm_view._mesh_model is not None, 'Packaged arm mesh asset missing'
+    assert 'STL' in w.arm_view.render_status(), w.arm_view.render_status()
     assert not w.state['armed'] and not w.home_button.isEnabled()
     w.mode.setCurrentIndex(w.mode.findData('j'))
     w.fill_current()

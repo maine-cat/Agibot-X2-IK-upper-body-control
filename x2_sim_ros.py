@@ -2366,6 +2366,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p.set_defaults(func=cmd_cartesian)
 
     p = sub.add_parser("mdi", help="交互式手动输入笛卡尔位姿(边输边动)")
+    from x2_tcp import TCP_MODES
+    p.add_argument("--tcp-mode", choices=TCP_MODES,
+                   default="none", help="TCP 工具:无 / 灵巧手 / 夹爪 / 自定义")
+    p.add_argument("--tcp-file", help="custom 模式的 TCP 标定 JSON 文件")
     p.add_argument("--side", default="right", choices=["left", "right"],
                    help="先操作哪条臂,进去以后可以用 `side left/right` 换")
     p.add_argument("--duration", type=float, default=2.5, help="每次运动用时 s,进去可用 dur 改")
@@ -2467,10 +2471,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     args = ap.parse_args(argv)
     mdi_profile = None
+    mdi_models = mdi_iks = None
     if args.cmd == "mdi":
         import x2_mdi
         try:
             x2_mdi.validate_args(args)
+            from x2_tcp import load_tcp_tools
+            tools = load_tcp_tools(args.tcp_mode, args.tcp_file)
+            mdi_models = {s: ArmModel(s, tcp_offset=t["translation_m"],
+                                      tcp_rotation=t["rotation_matrix"])
+                          for s, t in tools.items()}
+            mdi_iks = {s: SrsArmIK(m) for s, m in mdi_models.items()}
             mdi_profile = fixed_compensation()
             for option, key in (("stiffness", "stiffness"),
                                 ("bias_limit", "bias_limit_deg"),
@@ -2480,7 +2491,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     raise ValueError(
                         f"MDI 使用固定补偿；--{option.replace('_', '-')} "
                         f"只能为 {mdi_profile[key]}，不接受覆盖")
-        except ValueError as exc:
+        except (ValueError, OSError) as exc:
             ap.error(str(exc))
     if args.cmd in ("pose", "cartesian"):
         try:
@@ -2544,14 +2555,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                       stiffness, args.payload, gravity_source,
                       hand_mode=args.hand_mode,
                       bias_limit=math.radians(bias_limit_deg))
-    # lateral 的"偏置夹子自动抬高"只在夹子还是内置默认值时才该动手。
-    cli.reenter = args.reenter
-    cli.bias_limit_explicit = (mdi_profile is not None or args.bias_limit is not None
-                               or bool(calib and "bias_limit_deg" in calib))
-    if args.record is not None:
-        from x2_record import JointRecorder
-        cli.recorder = JointRecorder(Path(args.record), tcp=args.record_tcp)
     try:
+        if mdi_models is not None:
+            # TCP only changes FK/IK; dynamics retain their physical wrist frame.
+            cli.models, cli.iks = mdi_models, mdi_iks
+            cli.tcp_tools = tools
+        # lateral 的"偏置夹子自动抬高"只在夹子还是内置默认值时才该动手。
+        cli.reenter = args.reenter
+        cli.bias_limit_explicit = (mdi_profile is not None or args.bias_limit is not None
+                                   or bool(calib and "bias_limit_deg" in calib))
+        if args.record is not None:
+            from x2_record import JointRecorder
+            cli.recorder = JointRecorder(Path(args.record), tcp=args.record_tcp)
         return args.func(cli, args)
     except KeyboardInterrupt:
         return 130

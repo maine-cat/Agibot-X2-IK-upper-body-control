@@ -274,9 +274,9 @@ class SrsArmIK:
 
     def target_wrist_center(self, pos: np.ndarray, rot: np.ndarray) -> np.ndarray:
         """由 TCP 目标位姿反推腕心:先去掉 TCP 外参回到末端连杆原点,再加腕心偏置。"""
-        rot = np.asarray(rot, float)
-        ee_origin = np.asarray(pos, float) - rot @ self.model.tcp_offset
-        return ee_origin + rot @ self.wrist_local
+        rot_wrist = np.asarray(rot, float) @ self.model.tcp_rotation.T
+        ee_origin = np.asarray(pos, float) - rot_wrist @ self.model.tcp_offset
+        return ee_origin + rot_wrist @ self.wrist_local
 
     def reach_of(self, pos: np.ndarray, rot: np.ndarray) -> float:
         """目标位姿对应的肩-腕距离。用于在下发前判可达性。"""
@@ -304,7 +304,8 @@ class SrsArmIK:
             return pos, False
         target = hi if dist > hi else lo
         wrist_new = self.shoulder + vec * (target / dist)
-        return wrist_new - rot @ self.wrist_local + rot @ self.model.tcp_offset, True
+        rot_wrist = rot @ self.model.tcp_rotation.T
+        return wrist_new + rot_wrist @ (self.model.tcp_offset - self.wrist_local), True
 
     def _sew_basis(self, v_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """给定 S->W 单位向量,构造 SEW 角的零相位基 (n̂, b̂)。"""
@@ -410,7 +411,7 @@ class SrsArmIK:
         v_hat = v_vec / distance
         n_hat, b_hat = self._sew_basis(v_hat)
         a4 = self.axes0[3]
-        rot_ee_target = rot                          # tcp_offset 是纯平移,姿态相同
+        rot_ee_target = rot @ self.model.tcp_rotation.T
 
         out: List[IKSolution] = []
         for elbow_branch, q4 in enumerate(self.elbow_angles(distance)):
@@ -469,8 +470,9 @@ class SrsArmIK:
         FK 与 SEW 角共用同一次串联(_sew_from_frames),不再各串一遍。
         """
         positions, rotations = self.model.joint_frames(q)
-        fk_rot = rotations[-1]
-        fk_pos = positions[-1] + fk_rot @ self.model.tcp_offset
+        rot_wrist = rotations[-1]
+        fk_rot = rot_wrist @ self.model.tcp_rotation
+        fk_pos = positions[-1] + rot_wrist @ self.model.tcp_offset
         err = np.empty(7)
         err[:3] = pos - fk_pos
         err[3:6] = log3(rot @ fk_rot.T)
@@ -482,8 +484,9 @@ class SrsArmIK:
                         target_psi: float) -> np.ndarray:
         """_residual 的批量版,(N,7) -> (N,7)。LM 的阻尼试探靠它一次算完。"""
         positions, rotations = self.model.joint_frames_batch(q_arr)
-        fk_rot = rotations[..., -1, :, :]
-        fk_pos = positions[..., -1, :] + fk_rot @ self.model.tcp_offset
+        rot_wrist = rotations[..., -1, :, :]
+        fk_rot = rot_wrist @ self.model.tcp_rotation
+        fk_pos = positions[..., -1, :] + rot_wrist @ self.model.tcp_offset
         err = np.empty(q_arr.shape[:-1] + (7,))
         err[..., :3] = pos - fk_pos
         err[..., 3:6] = log3_batch(rot @ np.swapaxes(fk_rot, -1, -2))

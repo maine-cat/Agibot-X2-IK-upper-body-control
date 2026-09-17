@@ -84,6 +84,8 @@ class ArmDynamics:
 
     payload_mass + payload_com 描述装在腕 roll 连杆末端的手爪或工件。
     URDF 里没有 hand link,所以这部分必须由调用方按实际手型给出。
+    payload_com 保持历史约定:从 TCP 原点到质心的偏移,在 wrist_roll_link
+    坐标系表达。改变 TCP 轴方向不会转动同一个物理负载的质心。
     """
 
     def __init__(self, model: ArmModel,
@@ -121,8 +123,8 @@ class ArmDynamics:
         weighted = sum(m * c for m, c in zip(self.masses, coms))
         total = self.arm_mass
         if self.payload_mass > 0.0:
-            _, rotations = self.model.joint_frames(q)
-            tip = self.model.forward_kinematics(q)[0] + rotations[6] @ self.payload_com
+            positions, rotations = self.model.joint_frames(q)
+            tip = positions[6] + rotations[6] @ (self.model.tcp_offset + self.payload_com)
             weighted = weighted + self.payload_mass * tip
             total += self.payload_mass
         return weighted / total

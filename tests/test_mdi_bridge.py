@@ -132,7 +132,7 @@ class ProtocolProcessTests(unittest.TestCase):
 import atexit, os
 import x2_mdi_bridge as module
 class NoisyBridge:
-    def __init__(self, transport, demo=False):
+    def __init__(self, transport, demo=False, **kwargs):
         self.transport = transport
     def run(self):
         os.write(1, b'native DDS diagnostic\\n')

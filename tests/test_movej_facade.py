@@ -27,7 +27,8 @@ class MoveJFacadeTests(unittest.TestCase):
 
     def test_connection_does_not_move_or_request_state(self):
         self.factory.assert_called_once_with("right", robot_sn="test-sn", verbose=False,
-                                             _fixed_compensation=True)
+                                             _fixed_compensation=True,
+                                             _tcp_tools=x2_movej.load_tcp_tools())
         self.assertEqual(self.arm.method_calls, [])
 
     def test_explicit_left_then_right_use_same_connection_and_return_feedback(self):
@@ -90,10 +91,10 @@ class MinimalExampleTests(unittest.TestCase):
     def test_explicit_execution_moves_once_and_closes(self):
         public = SimpleNamespace(HOME=x2_movej.HOME, Robot=mock.MagicMock())
         robot = public.Robot.return_value.__enter__.return_value
-        robot.moveJ.return_value = {"err_max": 0.001}
+        robot.moveJ.return_value = {"err_max": 0.001, "position_m": [0.1, -0.2, 0.3]}
         with mock.patch.dict(sys.modules, {"x2ik": public}), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(example.main(["--execute"]), 0)
-        public.Robot.assert_called_once_with()
+        public.Robot.assert_called_once_with(tcp_mode="none", tcp_file=None)
         robot.moveJ.assert_called_once()
         kwargs = robot.moveJ.call_args.kwargs
         self.assertEqual(kwargs, dict(side="right", duration=8.0, settle=2.0))

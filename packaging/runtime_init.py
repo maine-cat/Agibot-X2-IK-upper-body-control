@@ -1,6 +1,6 @@
 """X2 robot module: MDI and MoveJ are the supported public interfaces."""
 __all__ = ["Robot", "HOME"]
-__version__ = "0.2.0"
+__version__ = "2.1.0"
 
 
 def __getattr__(name):

@@ -13,11 +13,12 @@ MODULES = (
     'x2_movej.py', 'x2_random_path_audit.py', 'x2_random_points.py',
     'x2_random_reach_plan.py', 'x2_random_reach_test.py', 'x2_record.py',
     'x2_sim_ros.py', 'x2_srs_batch.py', 'x2_srs_ik.py', 'x2_upper_raw.py',
-    'x2ik.py', 'upper_body_control.py', 'verify_x2_arm.py',
+    'x2ik.py', 'upper_body_control.py', 'verify_x2_arm.py', 'x2_tcp.py',
 )
 # The two model assets already exist in the repository's v1.0 branch.
 ASSETS = ('x2_ultra.urdf', 'x2_ultra.xml', 'x2_urdf_upstream_README.md',
-          '.gitignore', '.gitattributes', 'config/x2ik.conf.example', 'THIRD_PARTY_NOTICES.md')
+          '.gitignore', '.gitattributes', 'config/x2ik.conf.example', 'THIRD_PARTY_NOTICES.md',
+          'config/tcp_tool.example.json', 'assets/tcp_presets.json')
 FORBIDDEN_PARTS = {'.git', '.ssh', '.codex', '.agents', 'aimdk', 'runtime',
                    'dist', 'delivery', 'results', 'calibration', 'backups',
                    'artifacts', '__pycache__', 'archive'}
@@ -44,6 +45,9 @@ def source_files():
     selected['docs/HANDOVER.md'] = ROOT/'docs/HANDOVER.md'
     for p in (ROOT/'packaging/share_docs').glob('*.md'):
         selected['docs/'+p.name] = p
+    for p in (ROOT/'desktop/assets').glob('*'):
+        if p.is_file() and p.suffix in {'.json', '.gz', '.md'}:
+            selected[p.relative_to(ROOT).as_posix()] = p
     return selected
 
 

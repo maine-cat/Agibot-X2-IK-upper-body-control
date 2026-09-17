@@ -10,7 +10,7 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = ["x2_movej", "x2_api", "x2_mdi", "x2_mdi_bridge", "x2_sim_ros", "x2_arm_model",
            "x2_arm_dynamics", "x2_frames", "x2_srs_ik", "x2_srs_batch", "x2_record",
-           "x2_compensation"]
+           "x2_compensation", "x2_tcp"]
 
 
 def package_imports(source):
@@ -49,26 +49,28 @@ def main():
     shutil.copy2(ROOT / "packaging/runtime_main.py", dest / "__main__.py")
     for name in ("x2_ultra.urdf", "x2_ultra.xml"):
         shutil.copy2(ROOT / name, dest / name)
-    files = sorted(p for p in dest.iterdir() if p.is_file())
-    checks = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
+    (dest / "assets").mkdir(exist_ok=True)
+    shutil.copy2(ROOT / "assets/tcp_presets.json", dest / "assets/tcp_presets.json")
+    files = sorted(p for p in dest.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
+    checks = {p.relative_to(dest).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
     (ROOT / "runtime/MANIFEST.json").write_text(json.dumps(checks, indent=2) + "\n")
     (ROOT / "runtime/pyproject.toml").write_text('''[build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 [project]
 name = "x2ik"
-version = "0.2.0"
+version = "2.1.0"
 description = "X2 MDI and MoveJ robot module"
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.21"]
 [project.scripts]
 x2ik = "x2ik.__main__:main"
 [tool.setuptools.package-data]
-x2ik = ["*.urdf", "*.xml"]
+x2ik = ["*.urdf", "*.xml", "assets/*.json"]
 ''')
     output = ROOT / "dist"
     output.mkdir(exist_ok=True)
-    archive = output / "x2ik-runtime-0.2.0.tar.gz"
+    archive = output / "x2ik-runtime-2.1.0.tar.gz"
     with tarfile.open(archive, "w:gz") as tar:
         for path in sorted((ROOT / "runtime").rglob("*")):
             if path.is_file() and "__pycache__" not in path.parts and not any(x.endswith(".egg-info") for x in path.parts) and "build" not in path.parts:

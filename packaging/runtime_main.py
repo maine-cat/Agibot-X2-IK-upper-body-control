@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import sys
 
+from .x2_tcp import TCP_MODES, load_tcp_tools
+
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -24,7 +26,18 @@ def main(argv=None):
     move.add_argument("--duration", type=float, default=8.)
     move.add_argument("--settle", type=float, default=2.)
     move.add_argument("--execute", action="store_true")
+    for command in (mdi, move):
+        command.add_argument("--tcp-mode", choices=TCP_MODES, default="none",
+                             help="TCP tool: none / hand / gripper / custom")
+        command.add_argument("--tcp-file", help="custom TCP JSON file on the robot")
     args = parser.parse_args(argv)
+    try:
+        tools = load_tcp_tools(args.tcp_mode, args.tcp_file)
+    except (ValueError, OSError) as exc:
+        parser.error(str(exc))
+    tcp_options = ["--tcp-mode", args.tcp_mode]
+    if args.tcp_file is not None:
+        tcp_options += ["--tcp-file", args.tcp_file]
     from . import _bootstrap as boot
     config = Path(os.environ.get("X2IK_CONFIG", Path.cwd() / "x2ik.conf")).expanduser().resolve()
     boot.CONF = config
@@ -44,12 +57,13 @@ def main(argv=None):
     if args.entry == "mdi":
         if args.stdio:
             from . import x2_mdi_bridge
-            return x2_mdi_bridge.main(["--demo"] if args.demo else [])
+            return x2_mdi_bridge.main((["--demo"] if args.demo else []) + tcp_options)
         if args.demo:
             parser.error("--demo requires --stdio")
         from . import x2_sim_ros
         sys.argv = ["x2_sim_ros", "--mode", "upper_body", "mdi", "--no-home-first", "--relax", "0",
-                    "--side", args.side, "--duration", str(args.duration), "--settle", str(args.settle)]
+                    "--side", args.side, "--duration", str(args.duration), "--settle", str(args.settle),
+                    *tcp_options]
         if args.dry:
             sys.argv.append("--dry")
         return x2_sim_ros.main()
@@ -57,9 +71,11 @@ def main(argv=None):
     target = HOME.copy() if args.q is None else args.q
     if not args.execute:
         print("Offline MoveJ target (rad):", list(target), "side:", args.side)
+        print("TCP mode:", args.tcp_mode, "; tools:",
+              ", ".join(f"{side}={tool['name']}" for side, tool in tools.items()))
         print("Add --execute on the robot to send motion.")
         return 0
-    with Robot() as robot:
+    with Robot(tcp_mode=args.tcp_mode, tcp_file=args.tcp_file) as robot:
         options = dict(duration=args.duration, settle=args.settle)
         print(robot.moveJ(q_left=target, q_right=target, **options) if args.side == "both"
               else robot.moveJ(target, side=args.side, **options))
