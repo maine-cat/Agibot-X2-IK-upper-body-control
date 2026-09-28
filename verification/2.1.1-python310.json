@@ -1,0 +1,41 @@
+{
+  "version": "2.1.1",
+  "python": "3.10.12",
+  "scope": "Offline mathematics, application logic and packaging; no ROS or hardware connection",
+  "artifacts": {
+    "x2ik-2.1.1-py3-none-any.whl": "710b171878ce8099c746e5751a9fec2f816dcd132c5b8e322f90ab59bd5cc252",
+    "x2ik-runtime-2.1.1.tar.gz": "ac2b3db11914370cc100a23744df24d1b48304ece606d729d0649ce48e4805bf"
+  },
+  "source_sha256": {
+    "x2ik/__init__.py": "6db538e2c3136de816d1122c5bc4ad00140f67da67d83210f3040839e7ed747f",
+    "x2ik/__main__.py": "70e7e0d5c57b86893e44783f775e390ff08824501b3c6d2c6bcc1fb0523bc0df",
+    "x2ik/_bootstrap.py": "85cc0862710206d0dd382fdf5e57adc83248ddc8099c7ef007f1568eef511e1f",
+    "x2ik/assets/tcp_presets.json": "62eed72a8f329b23b96e70de0f02cecf50eadc7c928f899be51d8c4a47160639",
+    "x2ik/licenses/Model": "d6e9b64f82367866ab1789245b56ec3cc96876121c811ac1072dc09f60672312",
+    "x2ik/licenses/THIRD_PARTY_NOTICES.md": "b594c04e5c1f02560aeb7c30b05f0e3a4f9dd1ed62ce08d310704451abde62ce",
+    "x2ik/x2_api.py": "4c1ba2ceb9525d1b9a4b09e630ff76cc893390f10ea9d19fd3878599e462f81f",
+    "x2ik/x2_arm_dynamics.py": "a0203572e3c1b14ededbfa34bc1060ffb78c815b6d0591e03e9ff43233e84836",
+    "x2ik/x2_arm_model.py": "7e7410b746473abb22dc1719976089cc191bcd3ca2960518f271065fe14bb629",
+    "x2ik/x2_compensation.py": "2b65b2eb3df33758bb3083160ae9e11564f14fcbdbbe4e0ae40fc9a87018a9dd",
+    "x2ik/x2_frames.py": "2fe7026baaa54421698d47904eedac55e16b9459c3a4a65fa7ef7eb1baa23067",
+    "x2ik/x2_mdi.py": "fa32bab882267a65a4d5142c3ab78ca6daa8ae518b4c2171feb8bf0093447d17",
+    "x2ik/x2_mdi_bridge.py": "332dc0e5165c5341b99eeb8b16c4ea23a9a500e87f9efa60d77c0be33fa94c64",
+    "x2ik/x2_movej.py": "bd4797852c4fa72eea1cde9315c4b49dd3cc298282a005f0ad7458c76ab99422",
+    "x2ik/x2_record.py": "c3fb4dd2b8af3527b9a4bf53cd0c23032d9cc73623f5e53d4fe4dc49a5d272db",
+    "x2ik/x2_sim_ros.py": "6f08d25f8031a6ba0c018c6c761b3044d21ed394e1f6fa81deb247bc2507f88f",
+    "x2ik/x2_srs_batch.py": "fe01e874769bca98a04216250c0db29e319705e574cb39500b3c046d22b6a248",
+    "x2ik/x2_srs_ik.py": "0d0b467201103ecefce1a5b46445c78c979d24df82c3afeb367d4b81b0355316",
+    "x2ik/x2_tcp.py": "c0b87040c8ff6b00de6d0fe633a847dfb0f15c6a71304d42e98f13351bde69a8",
+    "x2ik/x2_ultra.urdf": "1163b3c76b31c4ea0afd284b67b28948003ce46f7ea4b2d9826f1309e9af7f11",
+    "x2ik/x2_ultra.xml": "2b755b7affecb4e3df9a0379b2e0ab4a1b2ccda53dd3531ad324dfe5c77cd904"
+  },
+  "checks": {
+    "wheel_record_and_source": true,
+    "runtime_manifest_and_source": true,
+    "wheel_tests": "  [!] left pose 连续 5 帧无法接受 IK 解，停止推进\ntest_all_baseline_targets_without_known_seed (test_ik.SolverTests) ... ok\ntest_candidate_residuals_are_recomputed_before_return (test_ik.SolverTests) ... ok\ntest_existing_pose_keeps_joint_angles_and_legacy_fields (test_ik.SolverTests) ... ok\ntest_fresh_targets_without_known_seed (test_ik.SolverTests) ... ok\ntest_invalid_requests_fail_explicitly (test_ik.SolverTests) ... ok\ntest_joint_step_is_not_wrapped_across_a_limit (test_ik.SolverTests) ... ok\ntest_legacy_solve_options_and_numeric_opt_out (test_ik.SolverTests) ... ok\ntest_original_api_and_mdi_use_integrated_solver (test_ik.SolverTests) ... ok\ntest_solve_continuous_path_with_step_bound (test_ik.SolverTests) ... ok\ntest_step_limit_rejects_large_motion (test_ik.SolverTests) ... ok\ntest_tool_translation_and_rotation (test_ik.SolverTests) ... ok\ntest_tracking_path_preserves_branch_without_global_recovery (test_ik.SolverTests) ... ok\ntest_unreachable_requests_are_rejected (test_ik.SolverTests) ... ok\ntest_wrong_branch_and_failed_local_search_are_rejected (test_ik.SolverTests) ... ok\ntest_original_cartesian_loop_with_local_ik (test_motion.MotionTests) ... ok\ntest_preflight_does_not_replace_unreachable_target (test_motion.MotionTests) ... ok\ntest_repeated_ik_failure_holds_then_stops (test_motion.MotionTests) ... ok\ntest_small_home_motion_does_not_switch_redundant_solution (test_motion.MotionTests) ... ok\n\n----------------------------------------------------------------------\nRan 18 tests in 2.829s\n\nOK\n",
+    "wheel_offline_cli": true,
+    "runtime_tests": "  [!] left pose 连续 5 帧无法接受 IK 解，停止推进\ntest_all_baseline_targets_without_known_seed (test_ik.SolverTests) ... ok\ntest_candidate_residuals_are_recomputed_before_return (test_ik.SolverTests) ... ok\ntest_existing_pose_keeps_joint_angles_and_legacy_fields (test_ik.SolverTests) ... ok\ntest_fresh_targets_without_known_seed (test_ik.SolverTests) ... ok\ntest_invalid_requests_fail_explicitly (test_ik.SolverTests) ... ok\ntest_joint_step_is_not_wrapped_across_a_limit (test_ik.SolverTests) ... ok\ntest_legacy_solve_options_and_numeric_opt_out (test_ik.SolverTests) ... ok\ntest_original_api_and_mdi_use_integrated_solver (test_ik.SolverTests) ... ok\ntest_solve_continuous_path_with_step_bound (test_ik.SolverTests) ... ok\ntest_step_limit_rejects_large_motion (test_ik.SolverTests) ... ok\ntest_tool_translation_and_rotation (test_ik.SolverTests) ... ok\ntest_tracking_path_preserves_branch_without_global_recovery (test_ik.SolverTests) ... ok\ntest_unreachable_requests_are_rejected (test_ik.SolverTests) ... ok\ntest_wrong_branch_and_failed_local_search_are_rejected (test_ik.SolverTests) ... ok\ntest_original_cartesian_loop_with_local_ik (test_motion.MotionTests) ... ok\ntest_preflight_does_not_replace_unreachable_target (test_motion.MotionTests) ... ok\ntest_repeated_ik_failure_holds_then_stops (test_motion.MotionTests) ... ok\ntest_small_home_motion_does_not_switch_redundant_solution (test_motion.MotionTests) ... ok\n\n----------------------------------------------------------------------\nRan 18 tests in 2.823s\n\nOK\n",
+    "runtime_offline_cli": true
+  },
+  "numpy": "2.2.6"
+}

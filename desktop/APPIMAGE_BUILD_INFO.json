@@ -1,0 +1,23 @@
+{
+  "artifact": "X2-MDI-2.1.0-x86_64.AppImage",
+  "sha256": "df0ad40955cf7abf46f24412ae1aec1d219ef85947d4e387ddf3f3aae6187959",
+  "architecture": "x86_64",
+  "libc": [
+    "glibc",
+    "2.35"
+  ],
+  "appimagetool_sha256": "a6d71e2b6cd66f8e8d16c37ad164658985e0cf5fcaa950c90a482890cb9d13e0",
+  "desktop_source_sha256": "e045d07202d7d40a6610304334452076a061d62e22a4e5730b246d64da1d8703",
+  "desktop_sources_sha256": {
+    "arm_mesh.py": "0b32d3ab4a1f30f9231c8abe047cf1b56048538323b46ba09a8896123fc63ee8",
+    "arm_view_3d.py": "c4b8ded39b1db2aec73202827c58abe95ee7819401a417caedd8236905b75c8e",
+    "x2_mdi_desktop.py": "e045d07202d7d40a6610304334452076a061d62e22a4e5730b246d64da1d8703"
+  },
+  "support_files_sha256": {
+    "x2_tcp.py": "c0b87040c8ff6b00de6d0fe633a847dfb0f15c6a71304d42e98f13351bde69a8",
+    "assets/tcp_presets.json": "62eed72a8f329b23b96e70de0f02cecf50eadc7c928f899be51d8c4a47160639",
+    "THIRD_PARTY_NOTICES.md": "b594c04e5c1f02560aeb7c30b05f0e3a4f9dd1ed62ce08d310704451abde62ce",
+    "desktop/assets/README.md": "7183f627de0e16a0b5a11a574cac1b7ce68cbe699f67e6cb1cbc13044d4e0e7a",
+    "desktop/assets/arm_meshes.json": "b17d4951f10cfe4686c948217a0093df633900001158e64abcbf792db3534d3b"
+  }
+}

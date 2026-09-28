@@ -1,0 +1,39 @@
+Desktop: PyQt5/Qt, Python and OpenSSH; distribution notices are included below
+and inside the AppImage usr/licenses directory. Desktop source and build script
+are provided in source/. Robot module requires an existing ROS/AimDK installation;
+ROS/AimDK SDK binaries, credentials, local configuration, calibration and logs
+are not included. Original x2_ultra URDF upstream declares Mulan PSL v2;
+additional user-supplied STL provenance is recorded separately in
+source/desktop/assets/README.md and source/THIRD_PARTY_NOTICES.md.
+
+# Model and dependency provenance
+
+`x2_ultra.urdf` and `x2_ultra.xml` are the upstream X2 Ultra model assets already
+present in this project's GitLab `v1.0` branch. The accompanying upstream notice
+is retained as `x2_urdf_upstream_README.md`; it declares Mulan PSL v2 for the model.
+The complete upstream SDK and original mesh trees are not distributed in this source export.
+FK/IK retain the existing base arm kinematic parameters. V2.1 additionally ships a
+decimated visual representation of the required arm STL meshes, with source
+filenames/hashes and conversion metadata alongside the derived asset. These are
+visual assets, not STEP solids or collision geometry.
+
+Runtime dependencies include Python and NumPy; online robot operation additionally
+requires the operator's existing ROS 2 / AimDK message installation. Desktop builds
+use PyQt5/Qt, OpenSSH, PyInstaller and AppImage tooling. Their licenses apply to their
+respective components; the delivery builder includes available distribution notices.
+
+This notice does not grant a new license to third-party components or to the
+project's own code. Preserve the upstream notices when redistributing model files.
+
+V2.1 TCP preset provenance is recorded in `assets/tcp_presets.json`:
+
+- Hand reference geometry comes from the user-supplied `agibot_x2_hand/scene.urdf`
+  and companion `x2_31dof_omnihand_2.xml`. The cup grasp center is an explicitly
+  estimated application point; it is not an upstream calibrated TCP. Its arm
+  kinematic geometry is not imported into the solver.
+- Gripper nominal center transforms are composed from explicit fixed links in
+  `omnipicker_omnipicker/x2_ultra_plus_omnipicker_omnipicker.urdf`.
+- Only the necessary TCP transforms, provenance and derived arm visualization
+  are included; no license for the entire user-supplied asset trees is inferred
+  from the existing base URDF notice. Recipients must retain source notices and
+  the applicable rights for any third-party assets they redistribute.
