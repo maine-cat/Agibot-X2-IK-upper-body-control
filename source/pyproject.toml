@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+[project]
+name = "x2ik"
+dynamic = ["version"]
+description = "X2 MDI and MoveJ robot module"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.21"]
+[project.scripts]
+x2ik = "x2ik.__main__:main"
+[tool.setuptools]
+include-package-data = false
+[tool.setuptools.package-data]
+x2ik = ["*.urdf", "*.xml", "assets/*.json", "licenses/*"]
+
+[tool.setuptools.packages.find]
+include = ["x2ik"]
+namespaces = false
+
+[tool.setuptools.dynamic]
+version = {attr = "x2ik.__version__"}

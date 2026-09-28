@@ -1,9 +1,0 @@
-# Copy to this robot's own x2ik.conf; do not commit the local copy.
-# X2_AIMDK_MSGS=/path/to/aimdk/install/aimdk_msgs
-# X2_ROBOT_SN=YOUR_ROBOT_SN
-# SN is a human-verified identifier, not an automatic hardware identity check.
-# MDI / public MoveJ use fixed 40 N.m/rad / 12 deg / pelvis compensation.
-# No per-SN compensation JSON or X2IK_CALIB_DIR is required for these interfaces.
-# Custom TCP mode requires its own tool JSON, selected with --tcp-file.
-X2_URS_ONLY=1
-# Customers switch to URS with the robot's own controls. MDI cannot switch modes.

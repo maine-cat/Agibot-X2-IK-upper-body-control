@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "units": "m",
+  "presets": {
+    "none": {
+      "left": {
+        "name": "left_wrist_roll_link",
+        "frame": "left_wrist_roll_link",
+        "translation_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_matrix": [
+          [
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "source": "x2_ultra.urdf: left_wrist_roll_link",
+        "estimated": false,
+        "description": "No external tool: wrist_roll_link origin and axes."
+      },
+      "right": {
+        "name": "right_wrist_roll_link",
+        "frame": "right_wrist_roll_link",
+        "translation_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_matrix": [
+          [
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "source": "x2_ultra.urdf: right_wrist_roll_link",
+        "estimated": false,
+        "description": "No external tool: wrist_roll_link origin and axes."
+      }
+    },
+    "gripper": {
+      "left": {
+        "name": "gripper_l_center_link",
+        "frame": "left_wrist_roll_link",
+        "translation_m": [
+          0.0,
+          0.0,
+          -0.17608
+        ],
+        "rotation_matrix": [
+          [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            -1.0
+          ]
+        ],
+        "source": "omnipicker_omnipicker/x2_ultra_plus_omnipicker_omnipicker.urdf: left_wrist_roll_link -> left_arm_end_link -> gripper_l_base_link -> gripper_l_center_link",
+        "estimated": true,
+        "description": "Nominal URDF fixed gripper center, 176.08 mm along -wrist Z. Not a measured grasp point; finger opening, cup size and adapters can change the usable center. No gripper opening/closing is commanded."
+      },
+      "right": {
+        "name": "gripper_r_center_link",
+        "frame": "right_wrist_roll_link",
+        "translation_m": [
+          0.0,
+          0.0,
+          -0.17608
+        ],
+        "rotation_matrix": [
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            -1.0
+          ]
+        ],
+        "source": "omnipicker_omnipicker/x2_ultra_plus_omnipicker_omnipicker.urdf: right_wrist_roll_link -> right_arm_end_link -> gripper_r_base_link -> gripper_r_center_link",
+        "estimated": true,
+        "description": "Nominal URDF fixed gripper center, 176.08 mm along -wrist Z. Not a measured grasp point; finger opening, cup size and adapters can change the usable center. No gripper opening/closing is commanded."
+      }
+    },
+    "hand": {
+      "left": {
+        "name": "left_estimated_cup_grasp_center",
+        "frame": "left_wrist_roll_link",
+        "translation_m": [
+          0.035,
+          0.0,
+          -0.15
+        ],
+        "rotation_matrix": [
+          [
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            -0.999998731726619,
+            -0.0015926534949108212
+          ],
+          [
+            0.0,
+            0.0015926534949108212,
+            -0.999998731726619
+          ]
+        ],
+        "source": "agibot_x2_hand/scene.urdf finger root geometry and companion x2_31dof_omnihand_2.xml palm orientation; approximate cup grasp center chosen by application, not an explicit URDF TCP",
+        "estimated": true,
+        "description": "Approximate cup grasp point: 35 mm toward palm front (+wrist X), 150 mm along fingers (-wrist Z). Geometry-based estimate, not measured calibration. Cup size and finger closure change the actual grasp center; this module does not control fingers."
+      },
+      "right": {
+        "name": "right_estimated_cup_grasp_center",
+        "frame": "right_wrist_roll_link",
+        "translation_m": [
+          0.035,
+          0.0,
+          -0.15
+        ],
+        "rotation_matrix": [
+          [
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            -0.999998731726619,
+            -0.0015926534949108212
+          ],
+          [
+            0.0,
+            0.0015926534949108212,
+            -0.999998731726619
+          ]
+        ],
+        "source": "agibot_x2_hand/scene.urdf finger root geometry and companion x2_31dof_omnihand_2.xml palm orientation; approximate cup grasp center chosen by application, not an explicit URDF TCP",
+        "estimated": true,
+        "description": "Approximate cup grasp point: 35 mm toward palm front (+wrist X), 150 mm along fingers (-wrist Z). Geometry-based estimate, not measured calibration. Cup size and finger closure change the actual grasp center; this module does not control fingers."
+      }
+    }
+  },
+  "provenance": {
+    "gripper": {
+      "file": "omnipicker_omnipicker/x2_ultra_plus_omnipicker_omnipicker.urdf",
+      "sha256": "d2213f4e1c560ae463f34540d377db29645d7691a14d95b0df724006787bf853",
+      "note": "Both 7-joint arm chains match the existing x2_ultra.urdf kinematic origins and axes. Fixed center links are explicit in the source."
+    },
+    "hand": {
+      "file": "agibot_x2_hand/x2_31dof_omnihand_2.xml",
+      "sha256": "1fcbd2d9e93d711d86960fc4c9af447a7e72583e7decbb232bf9a75ad479b88a",
+      "companion_urdf": "agibot_x2_hand/scene.urdf",
+      "companion_sha256": "973457d68c5c0209b971b734181b06f38a216cd50960e88a13e5f083993a08ac",
+      "note": "The companion URDF has no fixed grasp/TCP link. Both middle finger flexion roots are approximately 160 mm along wrist -Z; index roots are approximately 141 mm. Positive finger flexion curls toward wrist +X. The application estimates a cup grasp center at wrist [0.035, 0, -0.150] m. Orientation retains the companion MJCF palm frame Rx(3.14). This is not a measured calibration and does not control fingers. The hand robot arm geometry differs from x2_ultra.urdf and is not imported."
+    }
+  }
+}
