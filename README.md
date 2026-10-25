@@ -1,4 +1,4 @@
-#此项目停止维护
+# 此项目停止维护
 最新X2-IK实现参考官方仓库https://github.com/AgiBot-Community/Agibot-X2-IK-upper-body-control
 
 # X2 MDI / MoveJ V2.1 交付说明
