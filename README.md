@@ -1,3 +1,6 @@
+#此项目停止维护
+最新X2-IK实现参考官方仓库https://github.com/AgiBot-Community/Agibot-X2-IK-upper-body-control
+
 # X2 MDI / MoveJ V2.1 交付说明
 
 本说明面向接收模块的使用者。公开入口只有机器人端 MDI 和 Python `Robot.moveJ()`；
